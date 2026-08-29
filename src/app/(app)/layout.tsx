@@ -6,6 +6,8 @@
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabaseServer';
 import BottomNav from '@/components/BottomNav';
+import HiddenScrollQuote from '@/components/HiddenScrollQuote';
+import ShakeToShuffle from '@/components/ShakeToShuffle';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,8 +26,12 @@ export default async function AppLayout({
   return (
     <div className="flex flex-col min-h-dvh">
       {/* Page content — padded at bottom so bottom nav doesn't overlap */}
-      <main className="flex-1 safe-pb overflow-x-hidden">{children}</main>
+      <main className="flex-1 safe-pb overflow-x-hidden">
+        {children}
+        <HiddenScrollQuote />
+      </main>
 
+      <ShakeToShuffle />
       <BottomNav />
     </div>
   );

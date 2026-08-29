@@ -39,7 +39,8 @@ interface UserStats {
 
 function calculateUserStats(
   userName: string,
-  allMedia: MediaWithReview[]
+  allMedia: MediaWithReview[],
+  userId?: string
 ): UserStats {
   let watched = 0;
   let toWatch = 0;
@@ -55,7 +56,7 @@ function calculateUserStats(
     const review = media.reviews?.find(
       (r) =>
         r.user_name.toLowerCase() === userName.toLowerCase() ||
-        r.user_id === userName
+        (userId && r.user_id === userId)
     );
     if (!review) continue;
 
@@ -94,17 +95,7 @@ function calculateUserStats(
     .slice(0, 3)
     .map(([tag, count]) => ({ tag: tag as CustomTag, count }));
 
-  return {
-    watched,
-    toWatch,
-    recommended,
-    totalReviews,
-    avgRating,
-    topTags,
-    moviesCount,
-    seriesCount,
-    animeCount,
-  };
+  return { watched, toWatch, recommended, totalReviews, avgRating, topTags, moviesCount, seriesCount, animeCount };
 }
 
 export default async function ProfilePage() {
@@ -144,7 +135,7 @@ export default async function ProfilePage() {
 
   const allMedia = (mediaData ?? []) as MediaWithReview[];
 
-  const myStats = calculateUserStats(profile.username, allMedia);
+  const myStats = calculateUserStats(profile.username, allMedia, user.id);
 
   // Fetch other distinct members / profiles in the circle
   const { data: otherProfilesData } = await supabase

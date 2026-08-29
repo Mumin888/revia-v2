@@ -2,14 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Compass, Search, Disc3, UserCircle2 } from 'lucide-react';
+import { Home, Film, Search, Disc3, UserCircle2 } from 'lucide-react';
 
 const TABS = [
-  { href: '/',         label: 'الرئيسية',  icon: Home },
-  { href: '/discover', label: 'استكشاف',   icon: Compass },
-  { href: '/search',   label: 'بحث',       icon: Search },
-  { href: '/wheel',    label: 'عجلة الحظ', icon: Disc3 },
-  { href: '/profile',  label: 'حسابي',     icon: UserCircle2 },
+  { href: '/',        label: 'الرئيسية', icon: Home },
+  { href: '/browse',  label: 'استعراض',  icon: Film },
+  { href: '/search',  label: 'بحث',      icon: Search },
+  { href: '/wheel',   label: 'عجلة الحظ', icon: Disc3 },
+  { href: '/profile', label: 'حسابي',    icon: UserCircle2 },
 ] as const;
 
 export default function BottomNav() {

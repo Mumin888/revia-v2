@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { type MediaReview, type WatchStatus, type CustomTag, CUSTOM_TAGS } from '@/lib/types';
+import { showToast, launchConfetti } from '@/components/Toaster';
 
 interface ReviewSectionProps {
   mediaId: string;
@@ -145,6 +146,14 @@ export default function ReviewSection({ mediaId, initialReviews }: ReviewSection
         return [...prev, data as MediaReview];
       });
       setSuccess('تم حفظ التقييم بنجاح');
+
+      // ── Critic's Badge Easter Egg ──
+      const cleanReview = formReview.trim();
+      if (cleanReview.length > 200) {
+        launchConfetti();
+        showToast('Professional Critic Badge Earned! ✍️');
+      }
+
       setTimeout(() => { setIsOpen(false); setSuccess(null); router.refresh(); }, 550);
     });
   }

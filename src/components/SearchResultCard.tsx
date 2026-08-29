@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import { Plus, Film, Tv2, Sparkles, Check, Calendar } from 'lucide-react';
+import { Plus, Film, Tv2, Sparkles, Check, Calendar, Star } from 'lucide-react';
 import type { SearchResult } from '@/lib/types';
 
 const TYPE_META = {
@@ -52,6 +52,17 @@ export default function SearchResultCard({ result, inLibrary = false, onAdd }: S
           {result.title}
         </p>
         <div className="flex items-center gap-2 justify-end text-xs">
+          {typeof result.vote_average === 'number' && result.vote_average > 0 && (
+            <span
+              className="flex items-center gap-0.5 text-[11px] font-black"
+              style={{
+                color: result.vote_average >= 8 ? '#34d399' : result.vote_average >= 6.5 ? '#f5a623' : '#f87171',
+              }}
+            >
+              <Star size={10} fill="currentColor" />
+              {result.vote_average.toFixed(1)}
+            </span>
+          )}
           {year && (
             <span className="flex items-center gap-1 font-semibold" style={{ color: 'var(--text-secondary)' }}>
               <Calendar size={11} />

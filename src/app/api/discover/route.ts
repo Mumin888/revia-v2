@@ -75,13 +75,13 @@ function normalise(item: TmdbSearchResult, defaultType: 'movie' | 'tv'): SearchR
     release_date: item.release_date ?? item.first_air_date ?? null,
     genre_ids: item.genre_ids ?? [],
     overview: item.overview ?? '',
+    vote_average: item.vote_average ?? 0,
   };
 }
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const mood = (searchParams.get('mood') as MoodKey) || 'mind_bending';
-  const page = searchParams.get('page') || '1';
 
   const config = MOOD_CONFIG[mood] || MOOD_CONFIG.mind_bending;
   const apiKey = process.env.TMDB_API_KEY;
@@ -93,15 +93,17 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const randomPage = Math.floor(Math.random() * 8) + 1;
+
   const movieUrl =
     `${TMDB_BASE}/discover/movie` +
     `?api_key=${apiKey}` +
     `&with_genres=${config.genres}` +
     `&sort_by=${config.sortBy}` +
     `&vote_count.gte=${config.voteCountGte}` +
-    `&language=ar-SA` +
+    `&language=en-US` +
     `&include_adult=false` +
-    `&page=${page}`;
+    `&page=${randomPage}`;
 
   try {
     const res = await fetch(movieUrl, { next: { revalidate: 3600 } });

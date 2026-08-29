@@ -1,17 +1,18 @@
 // ─────────────────────────────────────────────
 //  REVIA V2 — Home Dashboard
-//  Strict alignment with globals.css & tailwind.config.ts
-//  .animate-fade-in-up / .stagger-1…5 / .glass-panel / CSS vars
+//  Activity feed distinguishes current user from others.
 // ─────────────────────────────────────────────
 import {
   Eye, BookmarkCheck, Star,
-  Clapperboard, Sparkles, HeartHandshake, Compass,
+  Sparkles, HeartHandshake, Compass, Users,
 } from 'lucide-react';
 import Link from 'next/link';
 import { createSupabaseServerClient } from '@/lib/supabaseServer';
 import type { MediaWithReview } from '@/lib/types';
 import SectionRow from '@/components/SectionRow';
 import MediaCard from '@/components/MediaCard';
+import LogoTap from '@/components/LogoTap';
+import MidnightBanner from '@/components/MidnightBanner';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,16 +26,22 @@ async function fetchAllMedia(): Promise<MediaWithReview[]> {
   return (data ?? []) as MediaWithReview[];
 }
 
-function hasStatus(item: MediaWithReview, status: string, userName?: string, userId?: string) {
-  if (userName || userId) {
-    return item.reviews?.some(
-      (r) =>
-        ((userName && r.user_name.toLowerCase() === userName.toLowerCase()) ||
-          (userId && r.user_id === userId)) &&
-        r.status === status
-    );
-  }
-  return item.reviews?.some((r) => r.status === status);
+function filterByStatus(
+  items: MediaWithReview[],
+  status: string,
+  userName?: string,
+  userId?: string
+): MediaWithReview[] {
+  return items.filter((item) =>
+    item.reviews?.some((r) => {
+      const matchUser = userName
+        ? r.user_name.toLowerCase() === userName.toLowerCase()
+        : true;
+      const matchId = userId ? r.user_id === userId : true;
+      const eitherMatch = userName || userId ? (matchUser || matchId) : true;
+      return eitherMatch && r.status === status;
+    })
+  );
 }
 
 export default async function HomePage() {
@@ -52,11 +59,32 @@ export default async function HomePage() {
 
   const all = await fetchAllMedia();
 
-  const watched     = all.filter((i) => hasStatus(i, 'watched'));
-  const toWatch     = all.filter((i) => hasStatus(i, 'to_watch'));
-  const recommended = all.filter((i) => hasStatus(i, 'recommended'));
+  // ── My activity ────────────────────────────────────────────
+  const myWatched     = filterByStatus(all, 'watched',     currentUsername, user?.id);
+  const myToWatch     = filterByStatus(all, 'to_watch',    currentUsername, user?.id);
+  const myRecommended = filterByStatus(all, 'recommended', currentUsername, user?.id);
 
-  const myHighRatedItems = all.filter((item) =>
+  // ── Partners' recent activity (excludes current user) ──────
+  const partnerActivity = all.filter((item) =>
+    item.reviews?.some(
+      (r) =>
+        r.user_name.toLowerCase() !== currentUsername.toLowerCase() &&
+        (!user || r.user_id !== user.id)
+    )
+  );
+
+  // Group partner activity by user for the feed label
+  const partnerWatched = partnerActivity.filter((item) =>
+    item.reviews?.some(
+      (r) =>
+        r.user_name.toLowerCase() !== currentUsername.toLowerCase() &&
+        (!user || r.user_id !== user.id) &&
+        r.status === 'watched'
+    )
+  );
+
+  // ── Smart recommendations ──────────────────────────────────
+  const myHighRated = all.filter((item) =>
     item.reviews?.some(
       (r) =>
         (r.user_name.toLowerCase() === currentUsername.toLowerCase() ||
@@ -64,15 +92,22 @@ export default async function HomePage() {
         ((r.rating ?? 0) >= 7 || r.status === 'recommended')
     )
   );
-  const favoriteGenres = new Set(myHighRatedItems.flatMap((i) => i.genres ?? []));
+  const favoriteGenres = new Set(myHighRated.flatMap((i) => i.genres ?? []));
 
   const tasteRecommendations = all.filter((item) => {
-    if (hasStatus(item, 'watched', currentUsername, user?.id)) return false;
-    return item.genres?.some((g) => favoriteGenres.has(g)) || hasStatus(item, 'recommended');
+    const iWatched = filterByStatus([item], 'watched', currentUsername, user?.id).length > 0;
+    if (iWatched) return false;
+    return item.genres?.some((g) => favoriteGenres.has(g)) ||
+      item.reviews?.some(
+        (r) =>
+          r.user_name.toLowerCase() !== currentUsername.toLowerCase() &&
+          r.status === 'recommended'
+      );
   });
 
   const partnerRecommendations = all.filter((item) => {
-    if (hasStatus(item, 'watched', currentUsername, user?.id)) return false;
+    const iWatched = filterByStatus([item], 'watched', currentUsername, user?.id).length > 0;
+    if (iWatched) return false;
     return item.reviews?.some(
       (r) =>
         r.user_name.toLowerCase() !== currentUsername.toLowerCase() &&
@@ -81,12 +116,34 @@ export default async function HomePage() {
     );
   });
 
+  // Names of other active users for the "others watched" label
+  const partnerNames = Array.from(
+    new Set(
+      partnerWatched.flatMap(
+        (item) =>
+          item.reviews
+            ?.filter(
+              (r) =>
+                r.user_name.toLowerCase() !== currentUsername.toLowerCase() &&
+                (!user || r.user_id !== user.id) &&
+                r.status === 'watched'
+            )
+            .map((r) => r.user_name) ?? []
+      )
+    )
+  );
+  const partnerWatchedLabel =
+    partnerNames.length === 1
+      ? `شاهد ${partnerNames[0]}`
+      : partnerNames.length > 1
+      ? `شاهده أعضاء الدائرة`
+      : 'شاهده شريكك';
+
   return (
     <div className="flex flex-col min-h-dvh pb-28">
 
-      {/* ── Hero Section ── .animate-fade-in-up .stagger-1 ── */}
+      {/* ── Hero Section ── */}
       <header className="relative overflow-hidden px-5 pt-14 pb-8">
-        {/* Ambient spot */}
         <div
           className="absolute -top-12 inset-x-0 h-80 pointer-events-none"
           style={{
@@ -94,32 +151,22 @@ export default async function HomePage() {
           }}
         />
 
-        {/* ── Row 1: App Title — .animate-fade-in-up .stagger-1 ── */}
+        {/* Title row */}
         <div className="relative z-10 text-right space-y-1.5 animate-fade-in-up stagger-1">
           <div className="flex items-center gap-3 justify-end">
-            {/* .text-gradient-amber-rose for main app title */}
-            <h1 className="text-gradient-amber-rose text-3xl sm:text-4xl font-black tracking-widest">
-              REVIA
-            </h1>
-            <div
-              className="w-11 h-11 rounded-2xl flex items-center justify-center border"
-              style={{
-                background: 'linear-gradient(135deg, #fef08a 0%, #f5a623 50%, #e879f9 100%)',
-                borderColor: 'rgba(245,166,35,0.4)',
-                boxShadow: '0 0 25px rgba(245,166,35,0.4)',
-              }}
-            >
-              <Clapperboard size={22} color="#050505" strokeWidth={2.8} />
-            </div>
+            <LogoTap />
           </div>
           <p className="text-xs font-bold" style={{ color: 'var(--text-secondary)' }}>
             مرحباً{' '}
             <span className="font-black" style={{ color: 'var(--text-primary)' }}>{currentUsername}</span>
             {' '}· سينمانا المشتركة
           </p>
+
+          {/* Midnight Marathon Easter Egg */}
+          <MidnightBanner />
         </div>
 
-        {/* ── Row 2: Quick Actions — .animate-fade-in-up .stagger-2 ── */}
+        {/* Quick Action Buttons */}
         <div className="relative z-10 flex items-center gap-3 mt-6 overflow-x-auto pb-1 scrollbar-none justify-end animate-fade-in-up stagger-2">
           <Link
             href="/compatibility"
@@ -149,21 +196,17 @@ export default async function HomePage() {
           </Link>
         </div>
 
-        {/* ── Row 3: Stats Grid — .glass-panel cards, .animate-fade-in-up .stagger-3 ── */}
+        {/* Stats Grid — My personal stats */}
         <div className="relative z-10 grid grid-cols-3 gap-3 mt-5 animate-fade-in-up stagger-3">
           {[
-            { label: 'تمت المشاهدة',  value: watched.length,     color: '#34d399', glow: 'rgba(52,211,153,0.2)' },
-            { label: 'قائمة المشاهدة', value: toWatch.length,     color: '#a5b4fc', glow: 'rgba(129,140,248,0.2)' },
-            { label: 'توصيات مميزة',   value: recommended.length, color: '#e879f9', glow: 'rgba(232,121,249,0.2)' },
+            { label: 'شاهدت',       value: myWatched.length,     color: '#34d399', glow: 'rgba(52,211,153,0.2)' },
+            { label: 'قائمتي',      value: myToWatch.length,     color: '#a5b4fc', glow: 'rgba(129,140,248,0.2)' },
+            { label: 'توصياتي',     value: myRecommended.length, color: '#e879f9', glow: 'rgba(232,121,249,0.2)' },
           ].map(({ label, value, color, glow }) => (
             <div
               key={label}
-              /* .glass-panel + explicit overrides for colored glow border */
-              className="glass-panel rounded-3xl py-4 px-2 text-center transition-all duration-300 hover:scale-103"
-              style={{
-                borderColor: `${color}40`,
-                boxShadow: `0 8px 28px -6px ${glow}`,
-              }}
+              className="glass-panel rounded-3xl py-4 px-2 text-center transition-all duration-300"
+              style={{ borderColor: `${color}40`, boxShadow: `0 8px 28px -6px ${glow}` }}
             >
               <p className="text-2xl font-black" style={{ color }}>{value}</p>
               <p className="text-[11px] font-extrabold mt-1" style={{ color: 'var(--text-secondary)' }}>
@@ -174,14 +217,14 @@ export default async function HomePage() {
         </div>
       </header>
 
-      {/* ── Scroll Sections: each block is .animate-fade-in-up .stagger-N ── */}
+      {/* ── Feed Sections ── */}
       <div className="flex flex-col gap-10">
 
-        {/* Partner Recommendations — stagger-4 */}
+        {/* Partner Recommendations */}
         {partnerRecommendations.length > 0 && (
           <div className="animate-fade-in-up stagger-4">
             <SectionRow
-              title="شاهده شريكك ونرشحه لك"
+              title={`${partnerWatchedLabel} ويرشحه لك`}
               icon={Sparkles}
               iconColor="var(--accent-amber)"
               count={partnerRecommendations.length}
@@ -193,7 +236,7 @@ export default async function HomePage() {
           </div>
         )}
 
-        {/* Taste Recommendations — stagger-5 */}
+        {/* Taste Recommendations */}
         {tasteRecommendations.length > 0 && (
           <div className="animate-fade-in-up stagger-5">
             <SectionRow
@@ -209,36 +252,50 @@ export default async function HomePage() {
           </div>
         )}
 
-        {/* Recently Watched — stagger-1 (next cycle) */}
+        {/* My Watched — "شاهدت" only for current user */}
         <div className="animate-fade-in-up stagger-1">
           <SectionRow
-            title="أحدث المشاهدات"
+            title="شاهدت"
             icon={Eye}
             iconColor="#34d399"
-            count={watched.length}
+            count={myWatched.length}
             empty={
               <div
-                className="glass-panel flex flex-col items-center gap-2.5 py-10 rounded-3xl text-center border-dashed"
+                className="glass-panel flex flex-col items-center gap-2.5 py-10 rounded-3xl text-center"
                 style={{ borderStyle: 'dashed', borderColor: 'var(--border-subtle)' }}
               >
                 <Eye size={30} style={{ color: 'var(--text-muted)' }} strokeWidth={1.5} />
                 <p className="text-xs font-bold" style={{ color: 'var(--text-secondary)' }}>
-                  لم تتم مشاهدة أي أعمال بعد
+                  لم تشاهد أي أعمال بعد — ابدأ من البحث
                 </p>
               </div>
             }
           >
-            {watched.map((item, i) => <MediaCard key={item.id} item={item} index={i} />)}
+            {myWatched.map((item, i) => <MediaCard key={item.id} item={item} index={i} />)}
           </SectionRow>
         </div>
 
-        {/* Watchlist — stagger-2 */}
-        <div className="animate-fade-in-up stagger-2">
+        {/* Partners Watched — "شاهده [Name]" with partner attribution */}
+        {partnerWatched.length > 0 && (
+          <div className="animate-fade-in-up stagger-2">
+            <SectionRow
+              title={partnerWatchedLabel}
+              icon={Users}
+              iconColor="#38bdf8"
+              count={partnerWatched.length}
+            >
+              {partnerWatched.map((item, i) => <MediaCard key={item.id} item={item} index={i} />)}
+            </SectionRow>
+          </div>
+        )}
+
+        {/* My Watchlist */}
+        <div className="animate-fade-in-up stagger-3">
           <SectionRow
-            title="قائمة المشاهدة"
+            title="قائمة مشاهدتي"
             icon={BookmarkCheck}
             iconColor="#818cf8"
-            count={toWatch.length}
+            count={myToWatch.length}
             empty={
               <div
                 className="glass-panel flex flex-col items-center gap-2.5 py-10 rounded-3xl text-center"
@@ -246,22 +303,22 @@ export default async function HomePage() {
               >
                 <BookmarkCheck size={30} style={{ color: 'var(--text-muted)' }} strokeWidth={1.5} />
                 <p className="text-xs font-bold" style={{ color: 'var(--text-secondary)' }}>
-                  قائمة المشاهدة فارغة — أضيفوا عناوين جديدة من البحث
+                  قائمة المشاهدة فارغة — أضف عناوين من البحث
                 </p>
               </div>
             }
           >
-            {toWatch.map((item, i) => <MediaCard key={item.id} item={item} index={i} />)}
+            {myToWatch.map((item, i) => <MediaCard key={item.id} item={item} index={i} />)}
           </SectionRow>
         </div>
 
-        {/* Recommendations — stagger-3 */}
-        <div className="animate-fade-in-up stagger-3">
+        {/* My Recommendations */}
+        <div className="animate-fade-in-up stagger-4">
           <SectionRow
-            title="توصيات خاصة"
+            title="أوصي بها"
             icon={Star}
             iconColor="var(--accent-rose)"
-            count={recommended.length}
+            count={myRecommended.length}
             empty={
               <div
                 className="glass-panel flex flex-col items-center gap-2.5 py-10 rounded-3xl text-center"
@@ -269,12 +326,12 @@ export default async function HomePage() {
               >
                 <Star size={30} style={{ color: 'var(--text-muted)' }} strokeWidth={1.5} />
                 <p className="text-xs font-bold" style={{ color: 'var(--text-secondary)' }}>
-                  لا توجد توصيات حتى الآن
+                  لا توجد توصيات بعد
                 </p>
               </div>
             }
           >
-            {recommended.map((item, i) => <MediaCard key={item.id} item={item} index={i} />)}
+            {myRecommended.map((item, i) => <MediaCard key={item.id} item={item} index={i} />)}
           </SectionRow>
         </div>
 

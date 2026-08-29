@@ -94,6 +94,7 @@ export interface TmdbSearchResult {
   genre_ids: number[];
   origin_country?: string[];
   overview: string;
+  vote_average?: number;
 }
 
 export interface TmdbSearchResponse {
@@ -112,4 +113,5 @@ export interface SearchResult {
   release_date: string | null;
   genre_ids: number[];
   overview: string;
+  vote_average: number;
 }

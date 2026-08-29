@@ -37,6 +37,8 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
+import { Toaster } from '@/components/Toaster';
+
 export default function RootLayout({
   children,
 }: {
@@ -49,6 +51,7 @@ export default function RootLayout({
         style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}
       >
         {children}
+        <Toaster />
       </body>
     </html>
   );

@@ -179,3 +179,72 @@ body::before {
   box-shadow: 0 10px 30px rgba(245, 166, 35, 0.6);
   filter: brightness(1.1);
 }
+
+/* ─────────────────────────────────────────────────────────────────────
+   Easter Eggs: Cinematic Premiere Theme (Velvet Curtain & Spotlight)
+───────────────────────────────────────────────────────────────────── */
+html.cinematic-premiere-active body {
+  background: radial-gradient(ellipse 100% 800px at 50% -100px, #2d040a 0%, #170104 55%, #050002 100%) !important;
+  color: #fff1f2 !important;
+}
+
+html.cinematic-premiere-active body::before {
+  background:
+    radial-gradient(ellipse 70% 500px at 50% -50px, rgba(229, 9, 20, 0.25) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 450px at 90% 100px, rgba(45, 4, 10, 0.9) 0%, transparent 60%) !important;
+}
+
+@keyframes ambientSpotlightPan {
+  0%   { left: 15%; top: 20%; }
+  25%  { left: 75%; top: 40%; }
+  50%  { left: 60%; top: 75%; }
+  75%  { left: 25%; top: 55%; }
+  100% { left: 15%; top: 20%; }
+}
+
+@keyframes dustMoteFloat {
+  0% {
+    transform: translateY(0) translateX(0) scale(0.9);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateY(-80px) translateX(20px) scale(1.1);
+    opacity: 0.9;
+  }
+  80% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(-160px) translateX(-15px) scale(0.8);
+    opacity: 0;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Easter Eggs: Stranger Things Horror FX
+───────────────────────────────────────────────────────────────────── */
+@keyframes bloodFlicker {
+  0%   { opacity: 0.85; filter: drop-shadow(0 0 35px rgba(255, 0, 0, 0.9)); }
+  12%  { opacity: 0.35; filter: drop-shadow(0 0 15px rgba(255, 0, 0, 0.4)); }
+  22%  { opacity: 0.95; filter: drop-shadow(0 0 50px rgba(255, 0, 0, 1)); }
+  38%  { opacity: 0.55; }
+  52%  { opacity: 0.2; }
+  68%  { opacity: 1; filter: drop-shadow(0 0 70px rgba(255, 0, 0, 1)); }
+  82%  { opacity: 0.45; }
+  100% { opacity: 0.9; }
+}
+
+@keyframes sporesDrift {
+  0%   { transform: translateY(0) translateX(0) scale(1); opacity: 0.8; }
+  50%  { transform: translateY(-50px) translateX(25px) scale(1.2); opacity: 0.4; }
+  100% { transform: translateY(-100px) translateX(-20px) scale(0.8); opacity: 0; }
+}
+
+.upside-down-scary {
+  transform: rotate(180deg) scale(1.02);
+  filter: sepia(0.7) hue-rotate(315deg) saturate(3.5) contrast(1.4) brightness(0.85) !important;
+  transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}

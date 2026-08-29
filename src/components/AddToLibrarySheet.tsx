@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import type { SearchResult, WatchStatus } from '@/lib/types';
+import { showToast } from '@/components/Toaster';
 
 const TYPE_META = {
   movie:  { label: 'فيلم',   Icon: Film,     color: '#60a5fa' },
@@ -93,6 +94,12 @@ export default function AddToLibrarySheet({ item, onClose, onSuccess }: AddToLib
   async function handleAdd() {
     if (!item) return;
     setError(null);
+
+    // ── Sarcastic Toast Easter Egg ──
+    if (typeof item.vote_average === 'number' && item.vote_average > 0 && item.vote_average < 4.0) {
+      showToast('Are you sure you want to waste your time on this? 😂');
+    }
+
     start(async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setError('يرجى تسجيل الدخول أولاً.'); return; }

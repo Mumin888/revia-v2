@@ -15,6 +15,7 @@ import {
   Sparkles,
   Calendar,
   Check,
+  Star,
 } from 'lucide-react';
 import type { SearchResult, MediaType } from '@/lib/types';
 import type { MoodKey } from '@/app/api/discover/route';
@@ -269,13 +270,24 @@ export default function DiscoverPage() {
 
                     {/* Meta info */}
                     <div className="space-y-1 text-right flex-1 px-0.5">
-                      <h3 className="text-xs font-bold text-slate-100 line-clamp-1 leading-snug">
+                      <h3 className="text-xs font-bold line-clamp-1 leading-snug" style={{ color: 'var(--text-primary)' }}>
                         {item.title}
                       </h3>
-                      <div className="flex items-center gap-2 justify-end text-[10px] text-slate-400">
+                      <div className="flex items-center gap-2 justify-end text-[10px]" style={{ color: 'var(--text-secondary)' }}>
+                        {item.vote_average > 0 && (
+                          <span
+                            className="flex items-center gap-0.5 font-black"
+                            style={{
+                              color: item.vote_average >= 8 ? '#34d399' : item.vote_average >= 6.5 ? '#f5a623' : '#f87171',
+                            }}
+                          >
+                            <Star size={10} fill="currentColor" />
+                            {item.vote_average.toFixed(1)}
+                          </span>
+                        )}
                         {year && (
-                          <span className="flex items-center gap-0.5">
-                            <Calendar size={10} className="text-slate-500" />
+                          <span className="flex items-center gap-0.5" style={{ color: 'var(--text-muted)' }}>
+                            <Calendar size={10} />
                             {year}
                           </span>
                         )}

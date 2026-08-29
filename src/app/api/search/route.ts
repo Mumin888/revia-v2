@@ -32,6 +32,7 @@ function normalise(item: TmdbSearchResult): SearchResult {
     release_date: item.release_date ?? item.first_air_date ?? null,
     genre_ids: item.genre_ids,
     overview: item.overview,
+    vote_average: item.vote_average ?? 0,
   };
 }
 
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
     `${TMDB_BASE}/search/multi` +
     `?api_key=${apiKey}` +
     `&query=${encodeURIComponent(query)}` +
-    `&language=ar-SA` +           // prefer Arabic metadata where available
+    `&language=en-US` +
     `&include_adult=false` +
     `&page=1`;
 
