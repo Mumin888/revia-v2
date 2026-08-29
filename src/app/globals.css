@@ -1,0 +1,181 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─────────────────────────────────────────────────────────────────────
+   REVIA V2 — The Ultimate Cinematic Design System
+───────────────────────────────────────────────────────────────────── */
+:root {
+  /* ألوان الشاشة الأساسية - OLED الصارم */
+  --bg-base: #050505;        /* أسود عميق جداً */
+  --bg-spot-blue: #0a0f1c;   
+  --bg-surface: rgba(18, 18, 21, 0.35); 
+  --bg-elevated: rgba(24, 24, 28, 0.45);
+
+  /* الألوان الرئيسية للتفاعل */
+  --accent-amber: #f5a623;
+  --accent-rose: #e879f9;
+  --accent-glow: rgba(245, 166, 35, 0.45);
+
+  /* النصوص والخطوط */
+  --text-primary: #ffffff;   
+  --text-secondary: #a1a1aa; 
+  --text-muted: #71717a;     
+
+  /* حواف الزجاج */
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-luminous: rgba(255, 255, 255, 0.15);
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Base & Canvas (تأسيس الشاشة وإضاءة الخلفية)
+───────────────────────────────────────────────────────────────────── */
+body {
+  font-family: var(--font-cairo), 'Cairo', system-ui, sans-serif;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  min-height: 100dvh;
+  direction: rtl;
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* شبكة الإضاءة الخلفية المعقدة (من كودك الأصلي) */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 700px;
+  background:
+    radial-gradient(ellipse 80% 400px at 50% -50px, rgba(245, 166, 35, 0.1) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 450px at 90% 100px, rgba(10, 15, 28, 0.8) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   إخفاء شريط التمرير (Scrollbar)
+───────────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 0px;
+  background: transparent;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   iOS Safe Area (iPhone notch / Dynamic Island / Home Indicator)
+───────────────────────────────────────────────────────────────────── */
+:root {
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-top:    env(safe-area-inset-top, 0px);
+}
+/* تجنب تغطية محتوى الصفحة بواسطة شريط التنقل */
+.safe-pb { padding-bottom: calc(6rem + var(--safe-area-bottom)); }
+/* حشوة إضافية لشريط التنقل نفسه */
+.dock-safe-bottom { padding-bottom: calc(0.5rem + var(--safe-area-bottom)); }
+
+/* ─────────────────────────────────────────────────────────────────────
+   Advanced Custom Keyframes (أنيميشن فيزيائي دقيق)
+───────────────────────────────────────────────────────────────────── */
+@keyframes fadeInUp {
+  0% { opacity: 0; transform: translateY(24px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(245, 166, 35, 0.2); }
+  50% { box-shadow: 0 0 40px rgba(245, 166, 35, 0.5); }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* تأثير الدخول المتدرج (Staggered Load) */
+.stagger-1 { animation-delay: 100ms; }
+.stagger-2 { animation-delay: 150ms; }
+.stagger-3 { animation-delay: 200ms; }
+.stagger-4 { animation-delay: 250ms; }
+.stagger-5 { animation-delay: 300ms; }
+
+/* ─────────────────────────────────────────────────────────────────────
+   Glassmorphism Presets (كلاسات الزجاج الفاخرة)
+───────────────────────────────────────────────────────────────────── */
+@layer components {
+  /* للبطاقات والنوافذ العادية */
+  .glass-panel {
+    background: var(--bg-surface);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid var(--border-subtle);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  }
+
+  /* لشريط التنقل السفلي (Dynamic Island) */
+  .dock-glass {
+    background: rgba(10, 10, 12, 0.7);
+    backdrop-filter: blur(36px) saturate(200%);
+    -webkit-backdrop-filter: blur(36px) saturate(200%);
+    border-top: 1px solid var(--border-luminous);
+    border-left: 1px solid var(--border-subtle);
+    border-right: 1px solid var(--border-subtle);
+    box-shadow: 0 -10px 50px rgba(0, 0, 0, 0.8), 0 0 20px rgba(245, 166, 35, 0.05);
+  }
+
+  /* للقوائم المنبثقة (Sheets) */
+  .sheet-glass {
+    background: linear-gradient(180deg, rgba(20, 20, 24, 0.85) 0%, rgba(5, 5, 5, 0.95) 100%);
+    backdrop-filter: blur(40px);
+    border-top: 1px solid var(--border-luminous);
+    box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.9);
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Cinematic Gradients & Overlays (تأثيرات النصوص والصور)
+───────────────────────────────────────────────────────────────────── */
+.text-gradient-amber-rose {
+  background: linear-gradient(135deg, #ffffff 0%, #fef08a 20%, #f5a623 60%, #e879f9 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 2px 10px rgba(245, 166, 35, 0.3));
+}
+
+/* التدرج اللوني على البوسترات عشان النصوص تكون واضحة */
+.poster-overlay {
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    transparent 50%,
+    rgba(5, 5, 5, 0.6) 75%,
+    rgba(5, 5, 5, 0.95) 100%
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Interactive Hover Effects (تفاعل البطاقات)
+───────────────────────────────────────────────────────────────────── */
+.card-hover {
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.card-hover:hover {
+  transform: translateY(-6px) scale(1.03);
+  border-color: rgba(245, 166, 35, 0.4);
+  box-shadow: 0 15px 35px -10px rgba(245, 166, 35, 0.25), 0 0 20px rgba(232, 121, 249, 0.1);
+}
+
+/* أزرار سينمائية */
+.btn-cinematic {
+  background: linear-gradient(135deg, #fef08a 0%, #f5a623 50%, #e879f9 100%);
+  color: #050505;
+  font-weight: 800;
+  transition: all 0.3s ease;
+  box-shadow: 0 5px 20px rgba(245, 166, 35, 0.4);
+}
+.btn-cinematic:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgba(245, 166, 35, 0.6);
+  filter: brightness(1.1);
+}

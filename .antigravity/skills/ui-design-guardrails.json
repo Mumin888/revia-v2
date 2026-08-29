@@ -1,0 +1,21 @@
+{
+  "name": "Strict Cinematic UI Guardrails - REVIA V2",
+  "description": "Overrides generic AI slop. Forces a dark, premium, Apple TV+ / Linear.app aesthetic.",
+  "rules": {
+    "banned_elements": [
+      "NO flat white or gray backgrounds. Base MUST be OLED Black (#050505).",
+      "NO generic Tailwind gradients.",
+      "NO massive border radii. Use sharp or very slightly rounded edges.",
+      "NO floating soft drop-shadows on cards. Use 1px subtle borders with backdrop-blur."
+    ],
+    "typography_and_layout": [
+      "RTL Layout must be strictly preserved for Arabic (Cairo Font).",
+      "Animations must be custom physics-based (cubic-bezier)."
+    ],
+    "default_component_styling": {
+      "cards": "Use the .glass-panel and .card-hover classes defined in globals.css.",
+      "buttons": "Use the .btn-cinematic class.",
+      "modals_and_nav": "Use .sheet-glass and .dock-glass for bottom nav and sheets."
+    }
+  }
+}
