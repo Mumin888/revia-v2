@@ -2,8 +2,8 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useTransition, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Film, Eye, EyeOff, Loader2, Clapperboard, User } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
@@ -66,9 +66,11 @@ function onBlurGlow(e: React.FocusEvent<HTMLInputElement>) {
   e.currentTarget.style.boxShadow = 'none';
 }
 
-// ─── Main Page ─────────────────────────────────────────────
-export default function LoginPage() {
+// ─── Main Form ─────────────────────────────────────────────
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get('redirect') || '/';
   const [isPending, startTransition] = useTransition();
 
   const [identifier, setIdentifier] = useState('');
@@ -103,7 +105,7 @@ export default function LoginPage() {
         setError('بيانات الدخول غير صحيحة. يرجى التحقق من اسم المستخدم أو البريد وكلمة المرور.');
         return;
       }
-      router.push('/');
+      router.push(redirectTo);
       router.refresh();
     });
   }
@@ -217,6 +219,16 @@ export default function LoginPage() {
                 {showPass ? <EyeOff size={17} /> : <Eye size={17} />}
               </button>
             </div>
+            {/* Forgot Password Link */}
+            <div className="flex justify-end pt-1">
+              <Link
+                href="/reset-password"
+                className="text-xs font-semibold hover:underline transition-colors"
+                style={{ color: 'var(--accent-amber)' }}
+              >
+                نسيت كلمة المرور؟
+              </Link>
+            </div>
           </div>
 
           {/* Error */}
@@ -266,5 +278,24 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div
+          className="min-h-dvh flex items-center justify-center"
+          style={{ background: 'var(--bg-base)' }}
+        >
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center border border-amber-500/30 bg-amber-500/10">
+            <Loader2 size={24} className="animate-spin text-amber-400" />
+          </div>
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }

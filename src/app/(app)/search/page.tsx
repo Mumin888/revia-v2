@@ -12,6 +12,7 @@ import { Search, X, Telescope, Film, Loader2 } from 'lucide-react';
 import type { SearchResult } from '@/lib/types';
 import SearchResultCard from '@/components/SearchResultCard';
 import AddToLibrarySheet from '@/components/AddToLibrarySheet';
+import { SearchResultSkeleton } from '@/components/MediaCardSkeleton';
 
 export const dynamic = 'force-dynamic';
 
@@ -277,7 +278,7 @@ export default function SearchPage() {
           )}
 
           {/* Results count */}
-          {results.length > 0 && (
+          {!isPending && results.length > 0 && (
             <div className="flex items-center justify-between text-xs px-1">
               <span className="font-black" style={{ color: 'var(--accent-amber)' }}>
                 {results.length} نتيجة
@@ -288,8 +289,14 @@ export default function SearchPage() {
             </div>
           )}
 
-          {/* Results */}
-          {results.length > 0 ? (
+          {/* Results / Skeletons */}
+          {isPending ? (
+            <div className="flex flex-col gap-3">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <SearchResultSkeleton key={i} />
+              ))}
+            </div>
+          ) : results.length > 0 ? (
             <div className="flex flex-col gap-3">
               {results.map((result) => (
                 <SearchResultCard

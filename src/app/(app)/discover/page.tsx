@@ -20,6 +20,7 @@ import {
 import type { SearchResult, MediaType } from '@/lib/types';
 import type { MoodKey } from '@/app/api/discover/route';
 import AddToLibrarySheet from '@/components/AddToLibrarySheet';
+import { MediaGridSkeleton } from '@/components/MediaCardSkeleton';
 
 export const dynamic = 'force-dynamic';
 
@@ -208,14 +209,7 @@ export default function DiscoverPage() {
           {isPending && (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5">
               {Array.from({ length: 8 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="rounded-3xl p-2.5 bg-slate-900/60 border border-slate-800 space-y-2.5"
-                >
-                  <div className="h-48 rounded-2xl shimmer w-full" />
-                  <div className="h-3.5 rounded-md shimmer w-3/4" />
-                  <div className="h-3 rounded-md shimmer w-1/2" />
-                </div>
+                <MediaGridSkeleton key={i} />
               ))}
             </div>
           )}

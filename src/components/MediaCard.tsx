@@ -74,45 +74,60 @@ export default function MediaCard({ item, index = 0, onClick }: MediaCardProps) 
   // Long press handlers
   const handleTouchStart = useCallback(() => {
     isLongPress.current = false;
+    if (pressTimer.current) clearTimeout(pressTimer.current);
     pressTimer.current = setTimeout(() => {
       isLongPress.current = true;
       triggerFlip();
-    }, 550);
+    }, 500);
   }, [triggerFlip]);
 
-  const handleTouchEnd = useCallback(() => {
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (pressTimer.current) clearTimeout(pressTimer.current);
+    if (isLongPress.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      setTimeout(() => {
+        isLongPress.current = false;
+      }, 400);
+    }
+  }, []);
+
+  const handleTouchMove = useCallback(() => {
     if (pressTimer.current) clearTimeout(pressTimer.current);
   }, []);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (isLongPress.current) return;
     triggerFlip();
   }, [triggerFlip]);
 
   const cardInner = (
     <div
-      className={`group relative w-36 flex-shrink-0 text-right focus:outline-none block animate-fade-in-up ${stagger}`}
+      className={`group relative w-36 flex-shrink-0 text-right focus:outline-none block animate-fade-in-up [perspective:1000px] ${stagger}`}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      onTouchMove={handleTouchEnd}
+      onTouchMove={handleTouchMove}
       onContextMenu={handleContextMenu}
     >
       {/* ── 3D Flip Container ── */}
       <div
-        className="relative w-36 h-52 select-none"
-        style={{ perspective: '1000px' }}
+        className="relative w-36 h-52 select-none [perspective:1000px]"
+        style={{ perspective: '1000px', WebkitPerspective: '1000px' }}
       >
         <div
-          className="relative w-full h-full rounded-3xl transition-transform duration-700"
+          className="relative w-full h-full rounded-3xl transition-transform duration-700 [transform-style:preserve-3d]"
           style={{
             transformStyle: 'preserve-3d',
+            WebkitTransformStyle: 'preserve-3d',
             transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+            WebkitTransform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
           }}
         >
           {/* ── FRONT FACE ── */}
           <div
-            className="card-hover absolute inset-0 rounded-3xl overflow-hidden border"
+            className="card-hover absolute inset-0 rounded-3xl overflow-hidden border [backface-visibility:hidden]"
             style={{
               background: 'var(--bg-elevated)',
               borderColor: 'var(--border-subtle)',
@@ -196,7 +211,7 @@ export default function MediaCard({ item, index = 0, onClick }: MediaCardProps) 
               e.stopPropagation();
               setIsFlipped(false);
             }}
-            className="absolute inset-0 rounded-3xl p-3.5 flex flex-col justify-between text-right border backdrop-blur-2xl cursor-pointer"
+            className="absolute inset-0 rounded-3xl p-3.5 flex flex-col justify-between text-right border backdrop-blur-2xl cursor-pointer [backface-visibility:hidden]"
             style={{
               background: 'linear-gradient(145deg, rgba(245, 166, 35, 0.15) 0%, rgba(18, 18, 21, 0.95) 100%)',
               borderColor: 'rgba(245, 166, 35, 0.5)',
@@ -204,6 +219,7 @@ export default function MediaCard({ item, index = 0, onClick }: MediaCardProps) 
               backfaceVisibility: 'hidden',
               WebkitBackfaceVisibility: 'hidden',
               transform: 'rotateY(180deg)',
+              WebkitTransform: 'rotateY(180deg)',
             }}
           >
             <div className="flex items-center justify-between border-b pb-2 border-white/10">
@@ -251,19 +267,30 @@ export default function MediaCard({ item, index = 0, onClick }: MediaCardProps) 
     </div>
   );
 
+  const handleMainClick = (e: React.MouseEvent) => {
+    if (isFlipped) {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsFlipped(false);
+      return;
+    }
+    if (isLongPress.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    if (onClick) {
+      onClick();
+    }
+  };
+
   if (onClick) {
     return (
       <button
         type="button"
-        onClick={(e) => {
-          if (isLongPress.current || isFlipped) {
-            e.preventDefault();
-            return;
-          }
-          onClick();
-        }}
+        onClick={handleMainClick}
         onContextMenu={handleContextMenu}
-        className="text-right focus:outline-none block"
+        className="text-right focus:outline-none block [perspective:1000px]"
         aria-label={`عرض تفاصيل ${item.title}`}
       >
         {cardInner}
@@ -274,13 +301,9 @@ export default function MediaCard({ item, index = 0, onClick }: MediaCardProps) 
   return (
     <Link
       href={`/media/${item.id}`}
-      onClick={(e) => {
-        if (isLongPress.current || isFlipped) {
-          e.preventDefault();
-        }
-      }}
+      onClick={handleMainClick}
       onContextMenu={handleContextMenu}
-      className="text-right focus:outline-none block"
+      className="text-right focus:outline-none block [perspective:1000px]"
       aria-label={`عرض تفاصيل ${item.title}`}
     >
       {cardInner}

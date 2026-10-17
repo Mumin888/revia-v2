@@ -40,21 +40,26 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Public routes — always allowed.
-  const publicPaths = ['/login', '/signup'];
+  // Public routes — accessible without an active session.
+  const publicPaths = ['/login', '/signup', '/reset-password', '/update-password'];
   const isPublic = publicPaths.some((p) => pathname.startsWith(p));
 
+  // If unauthenticated and accessing any private route (e.g., /profile, /library, /browse, /):
   if (!user && !isPublic) {
-    // Not authenticated → redirect to login.
     const url = request.nextUrl.clone();
     url.pathname = '/login';
+    // Preserve requested path for post-login redirection
+    if (pathname !== '/') {
+      url.searchParams.set('redirect', pathname);
+    }
     return NextResponse.redirect(url);
   }
 
-  if (user && (pathname === '/login' || pathname === '/signup')) {
-    // Already authenticated → redirect to home.
+  // If already authenticated and visiting auth-only entry pages:
+  if (user && (pathname === '/login' || pathname === '/signup' || pathname === '/reset-password')) {
     const url = request.nextUrl.clone();
     url.pathname = '/';
+    url.searchParams.delete('redirect');
     return NextResponse.redirect(url);
   }
 

@@ -108,45 +108,71 @@ function MediaCardItem({
 
   const handleTouchStart = () => {
     isLongPress.current = false;
+    if (pressTimer.current) clearTimeout(pressTimer.current);
     pressTimer.current = setTimeout(() => {
       isLongPress.current = true;
       triggerFlip();
-    }, 550);
+    }, 500);
   };
 
-  const handleTouchEnd = () => {
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (pressTimer.current) clearTimeout(pressTimer.current);
+    if (isLongPress.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      setTimeout(() => {
+        isLongPress.current = false;
+      }, 400);
+    }
+  };
+
+  const handleTouchMove = () => {
     if (pressTimer.current) clearTimeout(pressTimer.current);
   };
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (isLongPress.current) return;
     triggerFlip();
+  };
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (isFlipped) {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsFlipped(false);
+      return;
+    }
   };
 
   return (
     <div
+      onClick={handleCardClick}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      onTouchMove={handleTouchEnd}
+      onTouchMove={handleTouchMove}
       onContextMenu={handleContextMenu}
-      className="relative rounded-3xl overflow-hidden flex flex-col border"
+      className="relative rounded-3xl flex flex-col border [perspective:1000px]"
       style={{
         background: 'var(--bg-elevated)',
         borderColor: 'var(--border-subtle)',
         perspective: '1000px',
+        WebkitPerspective: '1000px',
       }}
     >
       <div
-        className="relative w-full aspect-[2/3] transition-transform duration-700 select-none"
+        className="relative w-full aspect-[2/3] transition-transform duration-700 select-none [transform-style:preserve-3d]"
         style={{
           transformStyle: 'preserve-3d',
+          WebkitTransformStyle: 'preserve-3d',
           transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+          WebkitTransform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
         }}
       >
         {/* FRONT */}
         <div
-          className="absolute inset-0 overflow-hidden"
+          className="absolute inset-0 overflow-hidden rounded-t-3xl [backface-visibility:hidden]"
           style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
         >
           {item.poster_path ? (
@@ -179,7 +205,7 @@ function MediaCardItem({
             e.stopPropagation();
             setIsFlipped(false);
           }}
-          className="absolute inset-0 rounded-3xl p-3 flex flex-col justify-between text-right border backdrop-blur-2xl cursor-pointer"
+          className="absolute inset-0 rounded-3xl p-3 flex flex-col justify-between text-right border backdrop-blur-2xl cursor-pointer [backface-visibility:hidden]"
           style={{
             background: 'linear-gradient(145deg, rgba(245, 166, 35, 0.15) 0%, rgba(18, 18, 21, 0.95) 100%)',
             borderColor: 'rgba(245, 166, 35, 0.5)',
@@ -187,6 +213,7 @@ function MediaCardItem({
             backfaceVisibility: 'hidden',
             WebkitBackfaceVisibility: 'hidden',
             transform: 'rotateY(180deg)',
+            WebkitTransform: 'rotateY(180deg)',
           }}
         >
           <div className="flex items-center justify-between border-b pb-1.5 border-white/10">

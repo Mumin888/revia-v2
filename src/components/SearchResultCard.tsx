@@ -1,12 +1,26 @@
+'use client';
+
+import { useState, useRef, useCallback } from 'react';
 import Image from 'next/image';
-import { Plus, Film, Tv2, Sparkles, Check, Calendar, Star } from 'lucide-react';
+import { Plus, Film, Tv2, Sparkles, Check, Calendar, Star, Clapperboard } from 'lucide-react';
 import type { SearchResult } from '@/lib/types';
+import { showToast } from '@/components/Toaster';
 
 const TYPE_META = {
   movie:  { label: 'فيلم',   Icon: Film,     color: '#60a5fa' },
   series: { label: 'مسلسل',  Icon: Tv2,      color: '#c084fc' },
   anime:  { label: 'أنمي',   Icon: Sparkles, color: '#e879f9' },
 } as const;
+
+const DIRECTORS_NOTES = [
+  'Ozz says: The UI took 3 cups of coffee and zero sleep to build! ☕',
+  'Fun Fact: Every glassmorphic card in REVIA was tested on 4K OLED screens! 🎬',
+  'Director’s Cut: Secretly watching movies during development was 100% part of the job! 🍿',
+  'Dev Note: The blur radius was calibrated using actual IMAX cinema optical lenses! ✨',
+  'Behind The Scenes: This card was written at 3:42 AM while binge-watching Oppenheimer. ⏳',
+  'Easter Egg Lore: 9 out of 10 developers recommend pairing this movie with extra butter popcorn. 🧈',
+  'Critic Consensus: 10/10 masterclass in frontend glassmorphism and pure cinema love! 🏆',
+];
 
 interface SearchResultCardProps {
   result: SearchResult;
@@ -15,35 +29,138 @@ interface SearchResultCardProps {
 }
 
 export default function SearchResultCard({ result, inLibrary = false, onAdd }: SearchResultCardProps) {
+  const [isFlipped, setIsFlipped] = useState(false);
+  const [directorsNote, setDirectorsNote] = useState('');
+  const pressTimer = useRef<NodeJS.Timeout | null>(null);
+  const isLongPress = useRef(false);
+
   const meta = TYPE_META[result.media_type] || TYPE_META.movie;
   const Icon = meta.Icon;
   const year = result.release_date?.slice(0, 4);
 
+  const triggerFlip = useCallback(() => {
+    setDirectorsNote(DIRECTORS_NOTES[Math.floor(Math.random() * DIRECTORS_NOTES.length)]);
+    setIsFlipped((prev) => !prev);
+    showToast('Director’s Cut Unlocked! 🎥 3D Flip');
+  }, []);
+
+  const handleTouchStart = useCallback(() => {
+    isLongPress.current = false;
+    if (pressTimer.current) clearTimeout(pressTimer.current);
+    pressTimer.current = setTimeout(() => {
+      isLongPress.current = true;
+      triggerFlip();
+    }, 500);
+  }, [triggerFlip]);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (pressTimer.current) clearTimeout(pressTimer.current);
+    if (isLongPress.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      setTimeout(() => {
+        isLongPress.current = false;
+      }, 400);
+    }
+  }, []);
+
+  const handleTouchMove = useCallback(() => {
+    if (pressTimer.current) clearTimeout(pressTimer.current);
+  }, []);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isLongPress.current) return;
+    triggerFlip();
+  }, [triggerFlip]);
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (isFlipped) {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsFlipped(false);
+      return;
+    }
+  };
+
   return (
     <div
-      className="glass-panel flex items-center gap-3.5 p-3.5 rounded-3xl transition-all duration-200 active:scale-[0.98]"
+      onClick={handleCardClick}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchMove={handleTouchMove}
+      onContextMenu={handleContextMenu}
+      className="glass-panel flex items-center gap-3.5 p-3.5 rounded-3xl transition-all duration-200 active:scale-[0.98] [perspective:1000px]"
       style={{
         borderColor: 'var(--border-subtle)',
+        perspective: '1000px',
+        WebkitPerspective: '1000px',
       }}
     >
-      {/* Poster */}
+      {/* ── Poster with 3D Flip ── */}
       <div
-        className="relative w-14 h-20 rounded-2xl overflow-hidden flex-shrink-0 border"
-        style={{ background: 'var(--bg-elevated)', borderColor: 'var(--border-subtle)' }}
+        className="relative w-14 h-20 rounded-2xl flex-shrink-0 select-none [perspective:1000px]"
+        style={{ perspective: '1000px', WebkitPerspective: '1000px' }}
       >
-        {result.poster_path ? (
-          <Image
-            src={`https://image.tmdb.org/t/p/w185${result.poster_path}`}
-            alt={result.title}
-            fill
-            sizes="56px"
-            className="object-cover"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center opacity-30">
-            <Icon size={22} color={meta.color} />
+        <div
+          className="relative w-full h-full rounded-2xl transition-transform duration-700 [transform-style:preserve-3d]"
+          style={{
+            transformStyle: 'preserve-3d',
+            WebkitTransformStyle: 'preserve-3d',
+            transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+            WebkitTransform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+          }}
+        >
+          {/* Front Face */}
+          <div
+            className="absolute inset-0 rounded-2xl overflow-hidden border [backface-visibility:hidden]"
+            style={{
+              background: 'var(--bg-elevated)',
+              borderColor: 'var(--border-subtle)',
+              backfaceVisibility: 'hidden',
+              WebkitBackfaceVisibility: 'hidden',
+            }}
+          >
+            {result.poster_path ? (
+              <Image
+                src={`https://image.tmdb.org/t/p/w185${result.poster_path}`}
+                alt={result.title}
+                fill
+                sizes="56px"
+                className="object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center opacity-30">
+                <Icon size={22} color={meta.color} />
+              </div>
+            )}
           </div>
-        )}
+
+          {/* Back Face (Director's Note) */}
+          <div
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsFlipped(false);
+            }}
+            className="absolute inset-0 rounded-2xl p-1.5 flex flex-col items-center justify-center text-center border backdrop-blur-2xl cursor-pointer [backface-visibility:hidden]"
+            style={{
+              background: 'linear-gradient(145deg, rgba(245, 166, 35, 0.25) 0%, rgba(18, 18, 21, 0.95) 100%)',
+              borderColor: 'rgba(245, 166, 35, 0.5)',
+              boxShadow: '0 0 15px rgba(245, 166, 35, 0.3)',
+              backfaceVisibility: 'hidden',
+              WebkitBackfaceVisibility: 'hidden',
+              transform: 'rotateY(180deg)',
+              WebkitTransform: 'rotateY(180deg)',
+            }}
+          >
+            <Clapperboard size={14} className="text-amber-400 mb-1" />
+            <span className="text-[7px] font-black text-amber-300 leading-tight">
+              CUT 🎥
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Info */}
@@ -80,17 +197,26 @@ export default function SearchResultCard({ result, inLibrary = false, onAdd }: S
             {meta.label}
           </span>
         </div>
-        {result.overview && (
-          <p className="text-xs line-clamp-2 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-            {result.overview}
+        {isFlipped ? (
+          <p className="text-xs line-clamp-2 leading-relaxed text-amber-300 font-bold animate-fade-in-up">
+            🎬 {directorsNote}
           </p>
+        ) : (
+          result.overview && (
+            <p className="text-xs line-clamp-2 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+              {result.overview}
+            </p>
+          )
         )}
       </div>
 
       {/* Add button */}
       <button
         type="button"
-        onClick={() => !inLibrary && onAdd(result)}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (!inLibrary) onAdd(result);
+        }}
         disabled={inLibrary}
         aria-label={inLibrary ? 'موجود في المكتبة' : `إضافة ${result.title}`}
         className="flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-200 border active:scale-90"
