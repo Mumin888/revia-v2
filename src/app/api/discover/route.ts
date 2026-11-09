@@ -4,6 +4,7 @@
 // ─────────────────────────────────────────────
 import { NextRequest, NextResponse } from 'next/server';
 import type { SearchResult, TmdbSearchResult, MediaType } from '@/lib/types';
+import { getApiUser, unauthorized } from '@/lib/apiAuth';
 
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 const ANIME_GENRE_ID = 16;
@@ -80,10 +81,19 @@ function normalise(item: TmdbSearchResult, defaultType: 'movie' | 'tv'): SearchR
 }
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const mood = (searchParams.get('mood') as MoodKey) || 'mind_bending';
+  // Members only: this route spends the server's TMDB quota.
+  if (!(await getApiUser())) return unauthorized();
 
-  const config = MOOD_CONFIG[mood] || MOOD_CONFIG.mind_bending;
+  const { searchParams } = new URL(request.url);
+
+  // Own-property check, so values such as "constructor" cannot pick up
+  // something inherited from Object.prototype.
+  const rawMood = searchParams.get('mood') ?? '';
+  const mood: MoodKey = Object.prototype.hasOwnProperty.call(MOOD_CONFIG, rawMood)
+    ? (rawMood as MoodKey)
+    : 'mind_bending';
+
+  const config = MOOD_CONFIG[mood];
   const apiKey = process.env.TMDB_API_KEY;
 
   if (!apiKey) {
@@ -111,7 +121,7 @@ export async function GET(request: NextRequest) {
     if (!res.ok) {
       return NextResponse.json(
         { error: `TMDB error: ${res.status}` },
-        { status: res.status }
+        { status: 502 }
       );
     }
 

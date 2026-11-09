@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Lock, Eye, EyeOff, Loader2, CheckCircle2, ShieldCheck, Film } from 'lucide-react';
@@ -70,7 +70,7 @@ export default function UpdatePasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setIsPending] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -95,30 +95,31 @@ export default function UpdatePasswordPage() {
       return;
     }
 
-    startTransition(async () => {
-      try {
-        const { error: updateError } = await supabase.auth.updateUser({
-          password: newPassword,
-        });
+    setIsPending(true);
+    try {
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
 
-        if (updateError) {
-          setError(updateError.message || 'حدث خطأ أثناء تحديث كلمة المرور. قد يكون الرابط منتهي الصلاحية.');
-          return;
-        }
-
-        setIsSuccess(true);
-        showToast('تم تحديث كلمة المرور بنجاح! 🔒✨');
-        launchConfetti();
-
-        // Redirect to homepage after brief delay
-        setTimeout(() => {
-          router.push('/');
-          router.refresh();
-        }, 2200);
-      } catch {
-        setError('تعذّر الاتصال بخادم المصادقة. يرجى المحاولة بعد قليل.');
+      if (updateError) {
+        setError(updateError.message || 'حدث خطأ أثناء تحديث كلمة المرور. قد يكون الرابط منتهي الصلاحية.');
+        return;
       }
-    });
+
+      setIsSuccess(true);
+      showToast('تم تحديث كلمة المرور بنجاح! 🔒✨');
+      launchConfetti();
+
+      // Redirect to homepage after brief delay
+      setTimeout(() => {
+        router.push('/');
+        router.refresh();
+      }, 2200);
+    } catch {
+      setError('تعذّر الاتصال بخادم المصادقة. يرجى المحاولة بعد قليل.');
+    } finally {
+      setIsPending(false);
+    }
   }
 
   return (

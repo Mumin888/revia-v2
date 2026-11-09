@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { type MediaReview, type WatchStatus, type CustomTag, CUSTOM_TAGS } from '@/lib/types';
+import { isOwnReview } from '@/lib/security';
 import { showToast, launchConfetti } from '@/components/Toaster';
 
 interface ReviewSectionProps {
@@ -59,12 +60,16 @@ export default function ReviewSection({ mediaId, initialReviews }: ReviewSection
   const [currentUserId, setCurrentUserId]     = useState<string | null>(null);
   const [activeUser, setActiveUser]           = useState<string | null>(null);
   const [isOpen, setIsOpen]                   = useState(false);
-  const [isPending, startTransition]          = useTransition();
+  // Real in-flight flag: stays true for the whole request, so save and delete
+  // cannot be pressed twice while one is still running.
+  const [isPending, setIsPending]             = useState(false);
   const [error, setError]                     = useState<string | null>(null);
   const [success, setSuccess]                 = useState<string | null>(null);
 
   const [formStatus, setFormStatus] = useState<WatchStatus>('watched');
-  const [formRating, setFormRating] = useState<number | null>(8);
+  // No rating until the member picks one: a pre-filled score would be saved
+  // (and averaged) for titles nobody actually rated.
+  const [formRating, setFormRating] = useState<number | null>(null);
   const [formReview, setFormReview] = useState<string>('');
   const [formTags, setFormTags]     = useState<CustomTag[]>([]);
 
@@ -85,18 +90,10 @@ export default function ReviewSection({ mediaId, initialReviews }: ReviewSection
     loadCurrentUser();
   }, []);
 
-  const myReview = reviews.find(
-    (r) =>
-      (currentUserId && r.user_id === currentUserId) ||
-      (currentUsername && r.user_name.toLowerCase() === currentUsername.toLowerCase())
-  );
+  const myReview = reviews.find((r) => isOwnReview(r, currentUserId, currentUsername));
 
   function openEdit(userNameToEdit: string) {
-    const existing = reviews.find(
-      (r) =>
-        r.user_name.toLowerCase() === userNameToEdit.toLowerCase() ||
-        (currentUserId && r.user_id === currentUserId)
-    );
+    const existing = reviews.find((r) => isOwnReview(r, currentUserId, userNameToEdit));
     setActiveUser(userNameToEdit);
     setError(null); setSuccess(null);
     if (existing) {
@@ -105,7 +102,7 @@ export default function ReviewSection({ mediaId, initialReviews }: ReviewSection
       setFormReview(existing.review ?? '');
       setFormTags(existing.custom_tags ?? []);
     } else {
-      setFormStatus('watched'); setFormRating(8); setFormReview(''); setFormTags([]);
+      setFormStatus('watched'); setFormRating(null); setFormReview(''); setFormTags([]);
     }
     setIsOpen(true);
   }
@@ -115,9 +112,10 @@ export default function ReviewSection({ mediaId, initialReviews }: ReviewSection
   }
 
   async function handleSave() {
-    if (!activeUser) return;
+    if (!activeUser || isPending) return;
     setError(null);
-    startTransition(async () => {
+    setIsPending(true);
+    try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setError('يرجى تسجيل الدخول أولاً.'); return; }
       const { data: profile } = await supabase.from('profiles').select('username').eq('id', user.id).maybeSingle();
@@ -125,9 +123,8 @@ export default function ReviewSection({ mediaId, initialReviews }: ReviewSection
         profile?.username || activeUser ||
         (user.user_metadata?.username as string) ||
         (user.email ? user.email.split('@')[0] : 'User');
-      const existing = reviews.find(
-        (r) => r.user_name.toLowerCase() === resolvedName.toLowerCase() || r.user_id === user.id
-      );
+      // Only a row that belongs to this account is ever targeted by id.
+      const existing = reviews.find((r) => isOwnReview(r, user.id, resolvedName));
       const reviewPayload: Record<string, unknown> = {
         media_id: mediaId, user_name: resolvedName, user_id: user.id,
         status: formStatus, rating: formRating,
@@ -138,12 +135,11 @@ export default function ReviewSection({ mediaId, initialReviews }: ReviewSection
       const { data, error: upsertErr } = await supabase
         .from('media_reviews').upsert(reviewPayload, { onConflict: 'media_id,user_name' }).select().single();
       if (upsertErr || !data) { setError('تعذّر حفظ المراجعة. حاول مجدداً.'); return; }
+      const saved = data as MediaReview;
       setReviews((prev) => {
-        const idx = prev.findIndex(
-          (r) => r.user_name.toLowerCase() === resolvedName.toLowerCase() || r.user_id === user.id
-        );
-        if (idx >= 0) { const next = [...prev]; next[idx] = data as MediaReview; return next; }
-        return [...prev, data as MediaReview];
+        const idx = prev.findIndex((r) => r.id === saved.id || isOwnReview(r, user.id, resolvedName));
+        if (idx >= 0) { const next = [...prev]; next[idx] = saved; return next; }
+        return [...prev, saved];
       });
       setSuccess('تم حفظ التقييم بنجاح');
 
@@ -155,37 +151,40 @@ export default function ReviewSection({ mediaId, initialReviews }: ReviewSection
       }
 
       setTimeout(() => { setIsOpen(false); setSuccess(null); router.refresh(); }, 550);
-    });
+    } catch {
+      setError('تعذّر حفظ المراجعة. حاول مجدداً.');
+    } finally {
+      setIsPending(false);
+    }
   }
 
   async function handleDelete() {
-    if (!activeUser) return;
+    if (!activeUser || isPending) return;
     setError(null);
-    startTransition(async () => {
+    setIsPending(true);
+    try {
       const { data: { user } } = await supabase.auth.getUser();
-      const existing = reviews.find(
-        (r) => r.user_name.toLowerCase() === activeUser.toLowerCase() || (user && r.user_id === user.id)
-      );
-      const query = supabase.from('media_reviews').delete().eq('media_id', mediaId);
-      if (existing?.id) { query.eq('id', existing.id); }
-      else if (user?.id) { query.or(`user_id.eq.${user.id},user_name.ilike.${activeUser}`); }
-      else { query.eq('user_name', activeUser); }
-      const { error: delErr } = await query;
-      if (delErr) { setError('تعذّر حذف المراجعة.'); return; }
-      setReviews((prev) =>
-        prev.filter((r) => r.user_name.toLowerCase() !== activeUser.toLowerCase() && (!user || r.user_id !== user.id))
-      );
+      if (!user) { setError('يرجى تسجيل الدخول أولاً.'); return; }
+      // The member's own review, addressed by its id. No filter is built
+      // from the username.
+      const existing = reviews.find((r) => isOwnReview(r, user.id, activeUser));
+      if (!existing?.id) { setIsOpen(false); return; }
+      const { data: removed, error: delErr } = await supabase
+        .from('media_reviews').delete().eq('id', existing.id).select('id');
+      // No rows back means nothing was deleted (for example a policy refused it).
+      if (delErr || !removed || removed.length === 0) { setError('تعذّر حذف المراجعة.'); return; }
+      setReviews((prev) => prev.filter((r) => r.id !== existing.id));
       setSuccess('تم حذف المراجعة');
       setTimeout(() => { setIsOpen(false); setSuccess(null); router.refresh(); }, 450);
-    });
+    } catch {
+      setError('تعذّر حذف المراجعة.');
+    } finally {
+      setIsPending(false);
+    }
   }
 
   const hasExisting = activeUser
-    ? reviews.some(
-        (r) =>
-          r.user_name.toLowerCase() === activeUser.toLowerCase() ||
-          (currentUserId && r.user_id === currentUserId)
-      )
+    ? reviews.some((r) => isOwnReview(r, currentUserId, activeUser))
     : false;
 
   return (
@@ -227,9 +226,7 @@ export default function ReviewSection({ mediaId, initialReviews }: ReviewSection
       {reviews.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
           {reviews.map((rev) => {
-            const isMe =
-              (currentUserId && rev.user_id === currentUserId) ||
-              (currentUsername && rev.user_name.toLowerCase() === currentUsername.toLowerCase());
+            const isMe = isOwnReview(rev, currentUserId, currentUsername);
             const statusConfig = STATUS_OPTIONS.find((s) => s.value === rev.status);
             const StatusIcon = statusConfig?.icon ?? Bookmark;
 
@@ -472,7 +469,8 @@ export default function ReviewSection({ mediaId, initialReviews }: ReviewSection
                     <button
                       key={score}
                       type="button"
-                      onClick={() => setFormRating(score)}
+                      // Tapping the selected score again clears the rating.
+                      onClick={() => setFormRating(current ? null : score)}
                       className="h-11 rounded-xl flex items-center justify-center font-black text-sm transition-all duration-150 border active:scale-90"
                       style={{
                         background: filled

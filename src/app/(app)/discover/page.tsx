@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useTransition } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import {
   Compass,
@@ -82,22 +82,35 @@ export default function DiscoverPage() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selectedItem, setSelectedItem] = useState<SearchResult | null>(null);
   const [addedIds, setAddedIds] = useState<Set<number>>(new Set());
-  const [isPending, startTransition] = useTransition();
+  // Real loading flag (true from the first render, since the first mood loads
+  // immediately), so the skeleton shows for as long as the request runs.
+  const [isPending, setIsPending] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Set when the mood changes again (or the page unmounts) before this
+    // request finishes, so a late response cannot replace newer results.
+    let cancelled = false;
     setError(null);
-    startTransition(async () => {
+    setIsPending(true);
+
+    (async () => {
       try {
         const res = await fetch(`/api/discover?mood=${selectedMood}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        setResults(data.results ?? []);
+        if (!cancelled) setResults(data.results ?? []);
       } catch {
-        setError('تعذّر تحميل اقتراحات المود. يرجى المحاولة لاحقاً.');
-        setResults([]);
+        if (!cancelled) {
+          setError('تعذّر تحميل اقتراحات المود. يرجى المحاولة لاحقاً.');
+          setResults([]);
+        }
+      } finally {
+        if (!cancelled) setIsPending(false);
       }
-    });
+    })();
+
+    return () => { cancelled = true; };
   }, [selectedMood]);
 
   const activeMoodConfig = MOODS.find((m) => m.key === selectedMood)!;

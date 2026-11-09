@@ -111,17 +111,21 @@ export default async function ProfilePage() {
   // Fetch current user profile
   const { data: profileData } = await supabase
     .from('profiles')
-    .select('*')
+    .select('id, username, role, avatar_url')
     .eq('id', user.id)
     .maybeSingle();
 
-  const profile: UserProfile = profileData ?? {
-    id: user.id,
-    email: user.email ?? '',
-    username: (user.user_metadata?.username as string) || (user.email ? user.email.split('@')[0] : 'User'),
-    role: user.email?.includes('admin') ? 'admin' : 'user',
-    avatar_url: null,
-  };
+  // Without a profile row the account is an ordinary member: the role is
+  // never guessed from the e-mail address.
+  const profile: UserProfile = profileData
+    ? { ...profileData, email: user.email ?? '' }
+    : {
+        id: user.id,
+        email: user.email ?? '',
+        username: (user.user_metadata?.username as string) || (user.email ? user.email.split('@')[0] : 'User'),
+        role: 'user',
+        avatar_url: null,
+      };
 
   const isAdmin = profile.role === 'admin';
 
@@ -138,12 +142,13 @@ export default async function ProfilePage() {
   const myStats = calculateUserStats(profile.username, allMedia, user.id);
 
   // Fetch other distinct members / profiles in the circle
+  // Only the public columns: other members' e-mails are not needed here.
   const { data: otherProfilesData } = await supabase
     .from('profiles')
-    .select('*')
+    .select('id, username')
     .neq('id', user.id);
 
-  const otherProfiles = (otherProfilesData ?? []) as UserProfile[];
+  const otherProfiles = (otherProfilesData ?? []) as Pick<UserProfile, 'id' | 'username'>[];
 
   // Also collect reviewers from media_reviews who might not have a profile row
   const otherReviewerNames = Array.from(

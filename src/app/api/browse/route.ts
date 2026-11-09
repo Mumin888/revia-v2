@@ -3,12 +3,15 @@
 // Accepts &page=N to support Load More (fetches that specific page)
 import { NextRequest, NextResponse } from 'next/server';
 import type { SearchResult } from '@/lib/types';
+import { getApiUser, unauthorized } from '@/lib/apiAuth';
 
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 const ANIME_GENRE_ID = 16;
 const ANIME_ORIGIN = 'JP';
 
-export type BrowseTab = 'movies' | 'tv' | 'anime' | 'top_rated';
+const BROWSE_TABS = ['movies', 'tv', 'anime', 'top_rated'] as const;
+export type BrowseTab = (typeof BROWSE_TABS)[number];
+const MAX_PAGE = 10;
 
 interface TmdbItem {
   id: number;
@@ -58,9 +61,18 @@ async function fetchPage(url: string, defaultType: DefaultType): Promise<SearchR
 }
 
 export async function GET(request: NextRequest) {
+  // Members only: this route spends the server's TMDB quota.
+  if (!(await getApiUser())) return unauthorized();
+
   const { searchParams } = new URL(request.url);
-  const tab  = (searchParams.get('tab') as BrowseTab) || 'movies';
-  const page = parseInt(searchParams.get('page') || '1', 10);
+
+  // Both parameters end up in the TMDB URL, so only known values get through.
+  const rawTab = searchParams.get('tab') ?? 'movies';
+  const tab: BrowseTab = (BROWSE_TABS as readonly string[]).includes(rawTab)
+    ? (rawTab as BrowseTab)
+    : 'movies';
+  const rawPage = Number(searchParams.get('page') ?? '1');
+  const page = Number.isInteger(rawPage) ? Math.min(Math.max(rawPage, 1), MAX_PAGE) : 1;
   const apiKey = process.env.TMDB_API_KEY;
 
   if (!apiKey) {
@@ -77,12 +89,13 @@ export async function GET(request: NextRequest) {
         fetch(`${TMDB_BASE}/movie/top_rated${qs(page)}`, { cache: 'no-store' }),
         fetch(`${TMDB_BASE}/tv/top_rated${qs(page)}`, { cache: 'no-store' }),
       ]);
+      if (!movRes.ok || !tvRes.ok) throw new Error(`TMDB ${movRes.status}/${tvRes.status}`);
       const [movData, tvData] = await Promise.all([movRes.json(), tvRes.json()]);
       const combined: SearchResult[] = [
         ...(movData.results as TmdbItem[]).filter((i) => Boolean(i.poster_path)).map((i) => normalise(i, 'movie')),
         ...(tvData.results as TmdbItem[]).filter((i) => Boolean(i.poster_path)).map((i) => normalise(i, 'tv')),
       ].sort((a, b) => (b.vote_average ?? 0) - (a.vote_average ?? 0));
-      return NextResponse.json({ results: combined, hasMore: page < 10 }, { status: 200 });
+      return NextResponse.json({ results: combined, hasMore: page < MAX_PAGE }, { status: 200 });
     }
 
     let url: string;
@@ -103,7 +116,7 @@ export async function GET(request: NextRequest) {
     }
 
     const results = await fetchPage(url, defaultType);
-    return NextResponse.json({ results, hasMore: page < 10 }, { status: 200 });
+    return NextResponse.json({ results, hasMore: page < MAX_PAGE }, { status: 200 });
 
   } catch {
     return NextResponse.json({ error: 'Failed to fetch browse results.' }, { status: 502 });

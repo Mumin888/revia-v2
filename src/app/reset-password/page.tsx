@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { Mail, Loader2, ArrowRight, CheckCircle2, KeyRound } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
@@ -66,7 +66,7 @@ function onBlurGlow(e: React.FocusEvent<HTMLInputElement>) {
 
 export default function ResetPasswordPage() {
   const [email, setEmail] = useState('');
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setIsPending] = useState(false);
   const [isSent, setIsSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -86,23 +86,24 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    startTransition(async () => {
-      try {
-        const redirectUrl = `${window.location.origin}/update-password`;
-        const { error: resetError } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
-          redirectTo: redirectUrl,
-        });
+    setIsPending(true);
+    try {
+      const redirectUrl = `${window.location.origin}/update-password`;
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+        redirectTo: redirectUrl,
+      });
 
-        if (resetError) {
-          setError(resetError.message || 'حدث خطأ أثناء إرسال الرابط. تحقق من بريدك وحاول مجدداً.');
-          return;
-        }
-
-        setIsSent(true);
-      } catch {
-        setError('تعذّر الاتصال بخادم المصادقة. يرجى المحاولة بعد قليل.');
+      if (resetError) {
+        setError(resetError.message || 'حدث خطأ أثناء إرسال الرابط. تحقق من بريدك وحاول مجدداً.');
+        return;
       }
-    });
+
+      setIsSent(true);
+    } catch {
+      setError('تعذّر الاتصال بخادم المصادقة. يرجى المحاولة بعد قليل.');
+    } finally {
+      setIsPending(false);
+    }
   }
 
   return (

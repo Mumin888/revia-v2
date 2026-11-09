@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import type { SearchResult, WatchStatus } from '@/lib/types';
+import { isOwnReview } from '@/lib/security';
 import { showToast } from '@/components/Toaster';
 
 const TYPE_META = {
@@ -29,25 +30,21 @@ interface AddToLibrarySheetProps {
   onSuccess?: (mediaId: string) => void;
 }
 
+type ExistingReview = { id: string; user_name: string; user_id?: string | null; status: WatchStatus };
+
 export default function AddToLibrarySheet({ item, onClose, onSuccess }: AddToLibrarySheetProps) {
-  const router = useRouter();
-  const [status, setStatus]     = useState<WatchStatus>('to_watch');
   const [userName, setUserName] = useState<string>('');
   const [userId, setUserId]     = useState<string | null>(null);
-  const [existingMediaId, setExistingMediaId]   = useState<string | null>(null);
-  const [existingReviewId, setExistingReviewId] = useState<string | null>(null);
-  const [hasExistingReview, setHasExistingReview] = useState(false);
-  const [done, setDone]   = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, start] = useTransition();
 
   useEffect(() => {
+    let cancelled = false;
     async function initUser() {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      setUserId(user.id);
+      if (!user || cancelled) return;
       const { data: profile } = await supabase
         .from('profiles').select('username').eq('id', user.id).maybeSingle();
+      if (cancelled) return;
+      setUserId(user.id);
       setUserName(
         profile?.username ||
         (user.user_metadata?.username as string) ||
@@ -55,44 +52,76 @@ export default function AddToLibrarySheet({ item, onClose, onSuccess }: AddToLib
       );
     }
     initUser();
+    return () => { cancelled = true; };
   }, []);
 
+  if (!item) return null;
+
+  // Keyed by title: each opened item gets a fresh body, so nothing loaded for
+  // the previous one (its saved review, its "remove" button) can act on this one.
+  return (
+    <SheetBody
+      key={`${item.media_type}-${item.tmdb_id}`}
+      item={item}
+      userName={userName}
+      userId={userId}
+      onClose={onClose}
+      onSuccess={onSuccess}
+    />
+  );
+}
+
+interface SheetBodyProps {
+  item: SearchResult;
+  userName: string;
+  userId: string | null;
+  onClose: () => void;
+  onSuccess?: (mediaId: string) => void;
+}
+
+function SheetBody({ item, userName, userId, onClose, onSuccess }: SheetBodyProps) {
+  const router = useRouter();
+  const [status, setStatus]     = useState<WatchStatus>('to_watch');
+  const [existingReviewId, setExistingReviewId] = useState<string | null>(null);
+  const [done, setDone]   = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // Real in-flight flag: stays true for the whole request, so the buttons
+  // cannot be pressed twice while a save or delete is still running.
+  const [isPending, setIsPending] = useState(false);
+
+  const hasExistingReview = existingReviewId !== null;
+
   useEffect(() => {
+    if (!userName) return;
+    let cancelled = false;
+
     async function checkExisting() {
-      if (!item || !userName) return;
-      setDone(false); setError(null);
       const { data: media } = await supabase
         .from('media_items')
-        .select('id, reviews:media_reviews(*)')
+        .select('id, reviews:media_reviews(id, user_name, user_id, status)')
         .eq('tmdb_id', item.tmdb_id)
         .eq('media_type', item.media_type)
         .maybeSingle();
+      if (cancelled) return;
 
-      if (media) {
-        setExistingMediaId(media.id);
-        const review = (media.reviews as Array<{ id: string; user_name: string; user_id?: string; status: WatchStatus }> | null)?.find(
-          (r) => r.user_name.toLowerCase() === userName.toLowerCase() || (userId && r.user_id === userId)
-        );
-        if (review) {
-          setHasExistingReview(true); setExistingReviewId(review.id); setStatus(review.status);
-        } else {
-          setHasExistingReview(false); setExistingReviewId(null); setStatus('to_watch');
-        }
-      } else {
-        setExistingMediaId(null); setHasExistingReview(false); setExistingReviewId(null); setStatus('to_watch');
+      const review = (media?.reviews as ExistingReview[] | null | undefined)?.find(
+        (r) => isOwnReview(r, userId, userName)
+      );
+      if (review) {
+        setExistingReviewId(review.id);
+        setStatus(review.status);
       }
     }
     checkExisting();
+    return () => { cancelled = true; };
   }, [item, userName, userId]);
-
-  if (!item) return null;
 
   const meta = TYPE_META[item.media_type];
   const Icon = meta.Icon;
   const year = item.release_date?.slice(0, 4);
 
   async function handleAdd() {
-    if (!item) return;
+    if (isPending || done) return;
     setError(null);
 
     // ── Sarcastic Toast Easter Egg ──
@@ -100,7 +129,8 @@ export default function AddToLibrarySheet({ item, onClose, onSuccess }: AddToLib
       showToast('Are you sure you want to waste your time on this? 😂');
     }
 
-    start(async () => {
+    setIsPending(true);
+    try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setError('يرجى تسجيل الدخول أولاً.'); return; }
 
@@ -145,27 +175,38 @@ export default function AddToLibrarySheet({ item, onClose, onSuccess }: AddToLib
 
       setDone(true);
       setTimeout(() => { if (onSuccess) onSuccess(mediaId); onClose(); router.push(`/media/${mediaId}`); }, 350);
-    });
+    } catch {
+      setError('تعذّر حفظ حالة المشاهدة.');
+    } finally {
+      setIsPending(false);
+    }
   }
 
   async function handleRemove() {
-    if (!existingMediaId) return;
+    // Only ever the one review this sheet loaded for the signed-in member,
+    // addressed by its id. No filter is built from the username.
+    if (!existingReviewId || isPending || done) return;
     setError(null);
-    start(async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      const query = supabase.from('media_reviews').delete().eq('media_id', existingMediaId);
-      if (existingReviewId) {
-        query.eq('id', existingReviewId);
-      } else if (user?.id) {
-        query.or(`user_id.eq.${user.id},user_name.ilike.${userName}`);
-      } else {
-        query.eq('user_name', userName);
+
+    setIsPending(true);
+    try {
+      const { data: removed, error: delErr } = await supabase
+        .from('media_reviews')
+        .delete()
+        .eq('id', existingReviewId)
+        .select('id');
+      // No rows back means nothing was deleted (for example a policy refused it).
+      if (delErr || !removed || removed.length === 0) {
+        setError('تعذّر حذف العمل من المكتبة.');
+        return;
       }
-      const { error: delErr } = await query;
-      if (delErr) { setError('تعذّر حذف العمل من المكتبة.'); return; }
       setDone(true);
       setTimeout(() => { onClose(); router.refresh(); }, 350);
-    });
+    } catch {
+      setError('تعذّر حذف العمل من المكتبة.');
+    } finally {
+      setIsPending(false);
+    }
   }
 
   return (

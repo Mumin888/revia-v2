@@ -2,11 +2,12 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useState, useTransition, Suspense } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Film, Eye, EyeOff, Loader2, Clapperboard, User } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
+import { safeRedirectPath } from '@/lib/security';
 
 // ─── Ambient particle ──────────────────────────────────────
 function Particle({ style }: { style: React.CSSProperties }) {
@@ -70,8 +71,9 @@ function onBlurGlow(e: React.FocusEvent<HTMLInputElement>) {
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get('redirect') || '/';
-  const [isPending, startTransition] = useTransition();
+  // Only same-site paths are honoured, never a full URL from the query string.
+  const redirectTo = safeRedirectPath(searchParams.get('redirect'));
+  const [isPending, setIsPending] = useState(false);
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword]     = useState('');
@@ -93,21 +95,44 @@ function LoginForm() {
     const clean = identifier.trim();
     if (!clean || !password) { setError('يرجى ملء جميع الحقول.'); return; }
 
-    startTransition(async () => {
-      let emailToUse = clean;
-      if (!clean.includes('@')) {
-        const { data: profile } = await supabase
-          .from('profiles').select('email').ilike('username', clean).maybeSingle();
-        if (profile?.email) emailToUse = profile.email;
-      }
-      const { error: authError } = await supabase.auth.signInWithPassword({ email: emailToUse, password });
-      if (authError) {
-        setError('بيانات الدخول غير صحيحة. يرجى التحقق من اسم المستخدم أو البريد وكلمة المرور.');
+    setIsPending(true);
+    try {
+      if (clean.includes('@')) {
+        // E-mail sign-in goes straight to Supabase from the browser.
+        const { error: authError } = await supabase.auth.signInWithPassword({ email: clean, password });
+        if (authError) {
+          setError('بيانات الدخول غير صحيحة. يرجى التحقق من اسم المستخدم أو البريد وكلمة المرور.');
+          setIsPending(false);
+          return;
+        }
+        router.push(redirectTo);
+        router.refresh();
         return;
       }
-      router.push(redirectTo);
-      router.refresh();
-    });
+
+      // A username is resolved and signed in on the server, so the e-mail
+      // address behind it never reaches the browser.
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: clean, password }),
+      });
+      if (!res.ok) {
+        setError(
+          res.status === 401 || res.status === 400
+            ? 'بيانات الدخول غير صحيحة. يرجى التحقق من اسم المستخدم أو البريد وكلمة المرور.'
+            : 'تعذّر تسجيل الدخول حالياً. يرجى المحاولة بعد قليل.'
+        );
+        setIsPending(false);
+        return;
+      }
+      // The session cookies were set by the server: a full navigation makes
+      // every part of the app start from them.
+      window.location.assign(redirectTo);
+    } catch {
+      setError('تعذّر الاتصال بالخادم. تحقق من اتصالك وحاول مجدداً.');
+      setIsPending(false);
+    }
   }
 
   return (

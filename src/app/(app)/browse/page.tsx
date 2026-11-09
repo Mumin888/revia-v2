@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useTransition, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import {
   Film, Tv2, Sparkles, Star, Plus, Check,
@@ -270,39 +270,52 @@ export default function BrowsePage() {
   const [selectedMood, setSelectedMood] = useState<MoodKey>('mind_bending');
   const [moodKey, setMoodKey]           = useState(0); // increment to trigger re-fetch
 
-  const [isPending, startTransition]   = useTransition();
+  // Real loading flag (true from the first render, since the first tab loads
+  // immediately), so the skeleton shows for as long as the request runs.
+  const [isPending, setIsPending]      = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  // Sequence number of the latest tab/mood request: a slower response from a
+  // tab the member already left is ignored.
+  const requestSeq = useRef(0);
 
   // ── Fetch for regular tabs ──
-  const loadBrowse = useCallback((tab: BrowseTab, pg: number, append: boolean) => {
-    startTransition(async () => {
-      try {
-        const res = await fetch(`/api/browse?tab=${tab}&page=${pg}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        setResults((prev) => append ? [...prev, ...(data.results ?? [])] : (data.results ?? []));
-        setHasMore(data.hasMore ?? false);
-        setError(null);
-      } catch {
-        setError('تعذّر تحميل النتائج. يرجى المحاولة لاحقاً.');
-      }
-    });
+  const loadBrowse = useCallback(async (tab: BrowseTab, pg: number, append: boolean) => {
+    const seq = ++requestSeq.current;
+    setIsPending(true);
+    try {
+      const res = await fetch(`/api/browse?tab=${tab}&page=${pg}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (seq !== requestSeq.current) return;
+      setResults((prev) => append ? [...prev, ...(data.results ?? [])] : (data.results ?? []));
+      setHasMore(data.hasMore ?? false);
+      setError(null);
+    } catch {
+      if (seq !== requestSeq.current) return;
+      setError('تعذّر تحميل النتائج. يرجى المحاولة لاحقاً.');
+    } finally {
+      if (seq === requestSeq.current) setIsPending(false);
+    }
   }, []);
 
   // ── Fetch for mood tab ──
-  const loadMood = useCallback((mood: MoodKey) => {
-    startTransition(async () => {
-      try {
-        const res = await fetch(`/api/discover?mood=${mood}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        setResults(data.results ?? []);
-        setHasMore(false); // mood uses randomPage, no pagination
-        setError(null);
-      } catch {
-        setError('تعذّر تحميل اقتراحات المود.');
-      }
-    });
+  const loadMood = useCallback(async (mood: MoodKey) => {
+    const seq = ++requestSeq.current;
+    setIsPending(true);
+    try {
+      const res = await fetch(`/api/discover?mood=${mood}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (seq !== requestSeq.current) return;
+      setResults(data.results ?? []);
+      setHasMore(false); // mood uses randomPage, no pagination
+      setError(null);
+    } catch {
+      if (seq !== requestSeq.current) return;
+      setError('تعذّر تحميل اقتراحات المود.');
+    } finally {
+      if (seq === requestSeq.current) setIsPending(false);
+    }
   }, []);
 
   // ── When tab changes ──
@@ -332,11 +345,14 @@ export default function BrowsePage() {
   async function handleLoadMore() {
     if (activeTab === 'mood' || isLoadingMore || !hasMore) return;
     const nextPage = page + 1;
+    const seq = requestSeq.current;
     setIsLoadingMore(true);
     try {
       const res = await fetch(`/api/browse?tab=${activeTab}&page=${nextPage}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      // The tab changed while this page was loading: don't append to the new list.
+      if (seq !== requestSeq.current) return;
       setResults((prev) => [...prev, ...(data.results ?? [])]);
       setHasMore(data.hasMore ?? false);
       setPage(nextPage);
