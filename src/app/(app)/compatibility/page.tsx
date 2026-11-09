@@ -63,8 +63,9 @@ function calculateCompatibility(
     }
   }
 
-  // 1. Compatibility Score
-  let score = 85;
+  // 1. Compatibility Score: only exists once both have rated the same title.
+  //    With nothing to compare there is no number to show.
+  let score: number | null = null;
   if (mutualItems.length > 0) {
     const totalDiff = mutualItems.reduce((acc, curr) => acc + curr.diff, 0);
     const avgDiff = totalDiff / mutualItems.length;
@@ -206,7 +207,7 @@ export default async function CompatibilityPage({
         <div className="relative w-36 h-36 mx-auto flex items-center justify-center rounded-full border-4 border-amber-500/20 glow-amber-lg bg-slate-900/80">
           <div className="text-center">
             <p className="text-4xl font-black text-amber-400 leading-none">
-              {score}%
+              {score !== null ? `${score}%` : '—'}
             </p>
             <p className="text-[11px] font-bold text-slate-400 mt-1">نسبة التوافق</p>
           </div>
@@ -214,7 +215,7 @@ export default async function CompatibilityPage({
 
         <div className="space-y-1.5">
           <h2 className="text-lg font-bold text-slate-100">
-            {getScoreVerdict(score)}
+            {score !== null ? getScoreVerdict(score) : 'لا توجد تقييمات مشتركة بعد'}
           </h2>
           <p className="text-xs text-slate-400">
             {mutualCount > 0

@@ -2,11 +2,12 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Film, Eye, EyeOff, Loader2, Clapperboard, User, Mail, Lock } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
+import { validateUsername } from '@/lib/security';
 
 // ─── Ambient particle ──────────────────────────────────────
 function Particle({ style }: { style: React.CSSProperties }) {
@@ -51,7 +52,8 @@ const inputStyle: React.CSSProperties = {
   borderRadius: '0.875rem',
   padding: '0.85rem 1rem',
   width: '100%',
-  fontSize: '0.875rem',
+  // 16px: iOS zooms the whole page when a focused field's text is smaller.
+  fontSize: '1rem',
   fontWeight: 600,
   outline: 'none',
   transition: 'border-color 0.25s, box-shadow 0.25s',
@@ -69,7 +71,7 @@ function onBlurGlow(e: React.FocusEvent<HTMLInputElement>) {
 // ─── Main Page ─────────────────────────────────────────────
 export default function SignUpPage() {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setIsPending] = useState(false);
 
   const [username, setUsername]   = useState('');
   const [email, setEmail]         = useState('');
@@ -92,10 +94,27 @@ export default function SignUpPage() {
     const cleanUsername = username.trim();
     const cleanEmail    = email.trim();
 
-    if (!cleanUsername) { setError('يرجى كتابة اسم المستخدم.'); return; }
+    const usernameError = validateUsername(cleanUsername);
+    if (usernameError) { setError(usernameError); return; }
     if (password.length < 6) { setError('يجب أن تكون كلمة المرور 6 أحرف على الأقل.'); return; }
 
-    startTransition(async () => {
+    setIsPending(true);
+    // Stays pending once we start navigating away, so the form cannot be
+    // submitted a second time while the next page loads.
+    let navigating = false;
+    try {
+      // Refuse a name another member already uses. The check needs the
+      // `is_username_available` SQL function; until that exists the call
+      // errors and sign-up simply proceeds as before.
+      const { data: available, error: availabilityError } = await supabase.rpc(
+        'is_username_available',
+        { candidate: cleanUsername }
+      );
+      if (!availabilityError && available === false) {
+        setError('اسم المستخدم مستخدم بالفعل. يرجى اختيار اسم آخر.');
+        return;
+      }
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: cleanEmail,
         password,
@@ -108,13 +127,15 @@ export default function SignUpPage() {
       }
 
       if (authData.user) {
-        try {
-          await supabase.from('profiles').upsert(
-            { id: authData.user.id, email: cleanEmail, username: cleanUsername, role: 'user', avatar_url: null },
-            { onConflict: 'id' }
-          );
-        } catch { /* handled via Supabase trigger */ }
+        // `role` here is only a default for new rows. It is not what makes
+        // someone a member or an admin: the database must ignore any role a
+        // browser sends (see supabase/security-hardening.sql).
+        await supabase.from('profiles').upsert(
+          { id: authData.user.id, email: cleanEmail, username: cleanUsername, role: 'user', avatar_url: null },
+          { onConflict: 'id' }
+        );
 
+        navigating = true;
         if (authData.session) {
           router.push('/'); router.refresh();
         } else {
@@ -123,7 +144,11 @@ export default function SignUpPage() {
           else router.push('/login');
         }
       }
-    });
+    } catch {
+      setError('تعذّر الاتصال بخادم المصادقة. يرجى المحاولة بعد قليل.');
+    } finally {
+      if (!navigating) setIsPending(false);
+    }
   }
 
   return (

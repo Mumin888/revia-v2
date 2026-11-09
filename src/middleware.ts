@@ -74,7 +74,13 @@ export const config = {
      * - _next/image (image optimisation)
      * - favicon.ico
      * - /api/* (API routes handle their own auth)
+     * - static files at the site root, served from /public (the web app
+     *   manifest, icons…). They are public by nature; behind the auth
+     *   redirect a signed-out visitor (the login page, an install prompt)
+     *   got the login HTML instead of the manifest or icon, and every such
+     *   request cost a session check. Root level only: a nested path such
+     *   as /user/name.png is still a page and still goes through auth.
      */
-    '/((?!_next/static|_next/image|favicon.ico|api/).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/|[^/]+\\.(?:json|webmanifest|png|jpg|jpeg|gif|webp|avif|svg|ico|txt|xml)$).*)',
   ],
 };

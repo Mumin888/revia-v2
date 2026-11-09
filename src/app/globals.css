@@ -158,12 +158,9 @@ body::before {
    Interactive Hover Effects (تفاعل البطاقات)
 ───────────────────────────────────────────────────────────────────── */
 .card-hover {
-  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.card-hover:hover {
-  transform: translateY(-6px) scale(1.03);
-  border-color: rgba(245, 166, 35, 0.4);
-  box-shadow: 0 15px 35px -10px rgba(245, 166, 35, 0.25), 0 0 20px rgba(232, 121, 249, 0.1);
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* أزرار سينمائية */
@@ -171,13 +168,120 @@ body::before {
   background: linear-gradient(135deg, #fef08a 0%, #f5a623 50%, #e879f9 100%);
   color: #050505;
   font-weight: 800;
-  transition: all 0.3s ease;
+  transition: transform 0.3s ease, box-shadow 0.3s ease, filter 0.3s ease;
   box-shadow: 0 5px 20px rgba(245, 166, 35, 0.4);
 }
-.btn-cinematic:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 30px rgba(245, 166, 35, 0.6);
-  filter: brightness(1.1);
+.btn-cinematic:active {
+  transform: scale(0.98);
+}
+
+/* زر العجلة (Wheel) */
+.btn-amber {
+  width: 100%;
+  padding: 0.875rem 1.25rem;
+  border-radius: 1rem;
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  color: #0f172a;
+  font-weight: 800;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+  box-shadow: 0 6px 22px rgba(245, 158, 11, 0.35);
+}
+.btn-amber:active {
+  transform: scale(0.98);
+}
+.btn-amber:disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Hover effects only where a pointer can really hover: on a touch screen
+   `:hover` sticks after a tap and leaves the element looking pressed. */
+@media (hover: hover) {
+  .card-hover:hover {
+    transform: translateY(-6px) scale(1.03);
+    border-color: rgba(245, 166, 35, 0.4);
+    box-shadow: 0 15px 35px -10px rgba(245, 166, 35, 0.25), 0 0 20px rgba(232, 121, 249, 0.1);
+  }
+  .btn-cinematic:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 30px rgba(245, 166, 35, 0.6);
+    filter: brightness(1.1);
+  }
+  .btn-amber:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.08);
+  }
+}
+
+/* توهج عنبري (بعد الأزرار حتى يتغلب على ظلها) */
+.glow-amber {
+  box-shadow: 0 0 20px rgba(245, 166, 35, 0.35);
+}
+.glow-amber-lg {
+  box-shadow: 0 0 45px rgba(245, 166, 35, 0.45), 0 0 90px rgba(245, 166, 35, 0.15);
+}
+
+/* تدرّج خلفية صفحة العمل: يذيب البوستر في لون الصفحة ليبقى العنوان واضحاً */
+.backdrop-overlay {
+  background: linear-gradient(
+    to bottom,
+    rgba(5, 5, 5, 0.45) 0%,
+    rgba(5, 5, 5, 0.2) 30%,
+    rgba(5, 5, 5, 0.8) 72%,
+    var(--bg-base) 100%
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Horizontal card rows (SectionRow)
+───────────────────────────────────────────────────────────────────── */
+.scroll-row {
+  display: flex;
+  gap: 0.875rem;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 1.25rem;
+  /* Room for the hover lift and glow, which the scroll box would clip. */
+  padding-block: 0.625rem 0.875rem;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.scroll-row::-webkit-scrollbar {
+  display: none;
+}
+.scroll-row > * {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Long-press surfaces (cards that flip on press-and-hold)
+───────────────────────────────────────────────────────────────────── */
+.press-surface {
+  /* No iOS link preview / image callout competing with the long-press. */
+  -webkit-touch-callout: none;
+}
+@media (pointer: coarse) {
+  .press-surface {
+    /* No text selection starting under the finger on touch screens. */
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Reduced motion: honour the system setting everywhere
+───────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────────────

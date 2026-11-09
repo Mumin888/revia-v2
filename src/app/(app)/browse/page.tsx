@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useTransition, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Image from 'next/image';
 import {
   Film, Tv2, Sparkles, Star, Plus, Check,
@@ -11,6 +11,7 @@ import type { SearchResult, MediaType } from '@/lib/types';
 import type { BrowseTab } from '@/app/api/browse/route';
 import type { MoodKey } from '@/app/api/discover/route';
 import AddToLibrarySheet from '@/components/AddToLibrarySheet';
+import { useFlipCard } from '@/lib/useFlipCard';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,7 +48,7 @@ function RatingPill({ score }: { score: number }) {
   const color = score >= 8 ? '#34d399' : score >= 6.5 ? '#f5a623' : '#f87171';
   return (
     <div
-      className="absolute top-2 end-2 flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg backdrop-blur-xl border text-[10px] font-black"
+      className="absolute top-2 end-2 flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg border text-[10px] font-black"
       style={{ background: 'rgba(5,5,5,0.85)', borderColor: `${color}60`, color, boxShadow: `0 0 10px ${color}30` }}
     >
       <Star size={8} fill={color} style={{ color }} />
@@ -70,90 +71,21 @@ function ShimmerCard() {
   );
 }
 
-import { showToast } from '@/components/Toaster';
-import { useRef } from 'react';
-
-const DIRECTORS_NOTES = [
-  'Ozz says: The UI took 3 cups of coffee and zero sleep to build! ☕',
-  'Fun Fact: Every glassmorphic card in REVIA was tested on 4K OLED screens! 🎬',
-  'Director’s Cut: Secretly watching movies during development was 100% part of the job! 🍿',
-  'Dev Note: The blur radius was calibrated using actual IMAX cinema optical lenses! ✨',
-  'Behind The Scenes: This card was written at 3:42 AM while binge-watching Oppenheimer. ⏳',
-  'Easter Egg Lore: 9 out of 10 developers recommend pairing this movie with extra butter popcorn. 🧈',
-  'Audio Check: No actual actors were harmed during the deployment of this database query. 🎧',
-  'Director’s Advice: Never pause a Christopher Nolan movie to explain the plot. Just ride the wave! 🌊',
-  'Studio Secret: The soundtrack for building REVIA was Hans Zimmer on loop for 72 hours. 🎻',
-  'Cinematographer Note: That 1px border glow is rendered with 100% organic starlight. 🌟',
-  'Critic Consensus: 10/10 masterclass in frontend glassmorphism and pure cinema love! 🏆',
-  'Production Trivia: Over 500 lines of Tailwind CSS were written before the opening credits rolled! 🎞️',
-];
-
 // ─── Media Card with 3D Flip ──────────────────────────────────
 function MediaCardItem({
   item, isAdded, onSelect,
 }: { item: SearchResult; isAdded: boolean; onSelect: () => void }) {
-  const [isFlipped, setIsFlipped] = useState(false);
-  const [directorsNote, setDirectorsNote] = useState('');
-  const pressTimer = useRef<NodeJS.Timeout | null>(null);
-  const isLongPress = useRef(false);
+  // Press-and-hold (touch) or right-click (mouse) flips the poster. While it
+  // is flipped, a tap anywhere on the card turns it back instead of adding.
+  const { isFlipped, directorsNote, bind } = useFlipCard();
 
   const typeInfo = TYPE_META[item.media_type] || TYPE_META.movie;
   const year = item.release_date?.slice(0, 4);
 
-  const triggerFlip = () => {
-    setDirectorsNote(DIRECTORS_NOTES[Math.floor(Math.random() * DIRECTORS_NOTES.length)]);
-    setIsFlipped((prev) => !prev);
-    showToast('Director’s Cut Unlocked! 🎥 3D Flip');
-  };
-
-  const handleTouchStart = () => {
-    isLongPress.current = false;
-    if (pressTimer.current) clearTimeout(pressTimer.current);
-    pressTimer.current = setTimeout(() => {
-      isLongPress.current = true;
-      triggerFlip();
-    }, 500);
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (pressTimer.current) clearTimeout(pressTimer.current);
-    if (isLongPress.current) {
-      e.preventDefault();
-      e.stopPropagation();
-      setTimeout(() => {
-        isLongPress.current = false;
-      }, 400);
-    }
-  };
-
-  const handleTouchMove = () => {
-    if (pressTimer.current) clearTimeout(pressTimer.current);
-  };
-
-  const handleContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (isLongPress.current) return;
-    triggerFlip();
-  };
-
-  const handleCardClick = (e: React.MouseEvent) => {
-    if (isFlipped) {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsFlipped(false);
-      return;
-    }
-  };
-
   return (
     <div
-      onClick={handleCardClick}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-      onTouchMove={handleTouchMove}
-      onContextMenu={handleContextMenu}
-      className="relative rounded-3xl flex flex-col border [perspective:1000px]"
+      {...bind}
+      className="press-surface relative rounded-3xl flex flex-col border [perspective:1000px]"
       style={{
         background: 'var(--bg-elevated)',
         borderColor: 'var(--border-subtle)',
@@ -181,6 +113,7 @@ function MediaCardItem({
               alt={item.title}
               fill
               sizes="(max-width: 640px) 50vw, 33vw"
+              draggable={false}
               className="object-cover transition-transform duration-500 hover:scale-105"
             />
           ) : (
@@ -190,7 +123,7 @@ function MediaCardItem({
           )}
           <div className="poster-overlay absolute inset-0 pointer-events-none" />
           <span
-            className="absolute top-2 start-2 text-[9px] font-black px-1.5 py-0.5 rounded-lg backdrop-blur-xl border"
+            className="absolute top-2 start-2 text-[9px] font-black px-1.5 py-0.5 rounded-lg border"
             style={{ background: 'rgba(5,5,5,0.8)', color: typeInfo.color, borderColor: `${typeInfo.color}40` }}
           >
             {typeInfo.label}
@@ -198,16 +131,12 @@ function MediaCardItem({
           <RatingPill score={item.vote_average} />
         </div>
 
-        {/* BACK: Director's Note */}
+        {/* BACK: Director's Note (opaque, no backdrop blur) */}
         <div
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsFlipped(false);
-          }}
-          className="absolute inset-0 rounded-3xl p-3 flex flex-col justify-between text-right border backdrop-blur-2xl cursor-pointer [backface-visibility:hidden]"
+          className="absolute inset-0 rounded-3xl p-3 flex flex-col justify-between text-right border cursor-pointer [backface-visibility:hidden]"
           style={{
-            background: 'linear-gradient(145deg, rgba(245, 166, 35, 0.15) 0%, rgba(18, 18, 21, 0.95) 100%)',
+            background:
+              'linear-gradient(145deg, rgba(245, 166, 35, 0.15) 0%, rgba(18, 18, 21, 0.95) 100%), #0c0c0e',
             borderColor: 'rgba(245, 166, 35, 0.5)',
             boxShadow: '0 0 25px rgba(245, 166, 35, 0.25)',
             backfaceVisibility: 'hidden',
@@ -237,10 +166,7 @@ function MediaCardItem({
         </div>
         <button
           type="button"
-          onClick={() => {
-            if (isLongPress.current || isFlipped) return;
-            onSelect();
-          }}
+          onClick={onSelect}
           disabled={isAdded}
           className="w-full py-1.5 rounded-xl text-[11px] font-black flex items-center justify-center gap-1 transition-all active:scale-95 border"
           style={
@@ -270,39 +196,52 @@ export default function BrowsePage() {
   const [selectedMood, setSelectedMood] = useState<MoodKey>('mind_bending');
   const [moodKey, setMoodKey]           = useState(0); // increment to trigger re-fetch
 
-  const [isPending, startTransition]   = useTransition();
+  // Real loading flag (true from the first render, since the first tab loads
+  // immediately), so the skeleton shows for as long as the request runs.
+  const [isPending, setIsPending]      = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  // Sequence number of the latest tab/mood request: a slower response from a
+  // tab the member already left is ignored.
+  const requestSeq = useRef(0);
 
   // ── Fetch for regular tabs ──
-  const loadBrowse = useCallback((tab: BrowseTab, pg: number, append: boolean) => {
-    startTransition(async () => {
-      try {
-        const res = await fetch(`/api/browse?tab=${tab}&page=${pg}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        setResults((prev) => append ? [...prev, ...(data.results ?? [])] : (data.results ?? []));
-        setHasMore(data.hasMore ?? false);
-        setError(null);
-      } catch {
-        setError('تعذّر تحميل النتائج. يرجى المحاولة لاحقاً.');
-      }
-    });
+  const loadBrowse = useCallback(async (tab: BrowseTab, pg: number, append: boolean) => {
+    const seq = ++requestSeq.current;
+    setIsPending(true);
+    try {
+      const res = await fetch(`/api/browse?tab=${tab}&page=${pg}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (seq !== requestSeq.current) return;
+      setResults((prev) => append ? [...prev, ...(data.results ?? [])] : (data.results ?? []));
+      setHasMore(data.hasMore ?? false);
+      setError(null);
+    } catch {
+      if (seq !== requestSeq.current) return;
+      setError('تعذّر تحميل النتائج. يرجى المحاولة لاحقاً.');
+    } finally {
+      if (seq === requestSeq.current) setIsPending(false);
+    }
   }, []);
 
   // ── Fetch for mood tab ──
-  const loadMood = useCallback((mood: MoodKey) => {
-    startTransition(async () => {
-      try {
-        const res = await fetch(`/api/discover?mood=${mood}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        setResults(data.results ?? []);
-        setHasMore(false); // mood uses randomPage, no pagination
-        setError(null);
-      } catch {
-        setError('تعذّر تحميل اقتراحات المود.');
-      }
-    });
+  const loadMood = useCallback(async (mood: MoodKey) => {
+    const seq = ++requestSeq.current;
+    setIsPending(true);
+    try {
+      const res = await fetch(`/api/discover?mood=${mood}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (seq !== requestSeq.current) return;
+      setResults(data.results ?? []);
+      setHasMore(false); // mood uses randomPage, no pagination
+      setError(null);
+    } catch {
+      if (seq !== requestSeq.current) return;
+      setError('تعذّر تحميل اقتراحات المود.');
+    } finally {
+      if (seq === requestSeq.current) setIsPending(false);
+    }
   }, []);
 
   // ── When tab changes ──
@@ -332,11 +271,14 @@ export default function BrowsePage() {
   async function handleLoadMore() {
     if (activeTab === 'mood' || isLoadingMore || !hasMore) return;
     const nextPage = page + 1;
+    const seq = requestSeq.current;
     setIsLoadingMore(true);
     try {
       const res = await fetch(`/api/browse?tab=${activeTab}&page=${nextPage}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      // The tab changed while this page was loading: don't append to the new list.
+      if (seq !== requestSeq.current) return;
       setResults((prev) => [...prev, ...(data.results ?? [])]);
       setHasMore(data.hasMore ?? false);
       setPage(nextPage);

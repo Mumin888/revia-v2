@@ -1,26 +1,15 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { Plus, Film, Tv2, Sparkles, Check, Calendar, Star, Clapperboard } from 'lucide-react';
 import type { SearchResult } from '@/lib/types';
-import { showToast } from '@/components/Toaster';
+import { useFlipCard } from '@/lib/useFlipCard';
 
 const TYPE_META = {
   movie:  { label: 'فيلم',   Icon: Film,     color: '#60a5fa' },
   series: { label: 'مسلسل',  Icon: Tv2,      color: '#c084fc' },
   anime:  { label: 'أنمي',   Icon: Sparkles, color: '#e879f9' },
 } as const;
-
-const DIRECTORS_NOTES = [
-  'Ozz says: The UI took 3 cups of coffee and zero sleep to build! ☕',
-  'Fun Fact: Every glassmorphic card in REVIA was tested on 4K OLED screens! 🎬',
-  'Director’s Cut: Secretly watching movies during development was 100% part of the job! 🍿',
-  'Dev Note: The blur radius was calibrated using actual IMAX cinema optical lenses! ✨',
-  'Behind The Scenes: This card was written at 3:42 AM while binge-watching Oppenheimer. ⏳',
-  'Easter Egg Lore: 9 out of 10 developers recommend pairing this movie with extra butter popcorn. 🧈',
-  'Critic Consensus: 10/10 masterclass in frontend glassmorphism and pure cinema love! 🏆',
-];
 
 interface SearchResultCardProps {
   result: SearchResult;
@@ -29,74 +18,18 @@ interface SearchResultCardProps {
 }
 
 export default function SearchResultCard({ result, inLibrary = false, onAdd }: SearchResultCardProps) {
-  const [isFlipped, setIsFlipped] = useState(false);
-  const [directorsNote, setDirectorsNote] = useState('');
-  const pressTimer = useRef<NodeJS.Timeout | null>(null);
-  const isLongPress = useRef(false);
+  // Press-and-hold (touch) or right-click (mouse) flips the poster.
+  const { isFlipped, directorsNote, bind } = useFlipCard();
 
   const meta = TYPE_META[result.media_type] || TYPE_META.movie;
   const Icon = meta.Icon;
   const year = result.release_date?.slice(0, 4);
 
-  const triggerFlip = useCallback(() => {
-    setDirectorsNote(DIRECTORS_NOTES[Math.floor(Math.random() * DIRECTORS_NOTES.length)]);
-    setIsFlipped((prev) => !prev);
-    showToast('Director’s Cut Unlocked! 🎥 3D Flip');
-  }, []);
-
-  const handleTouchStart = useCallback(() => {
-    isLongPress.current = false;
-    if (pressTimer.current) clearTimeout(pressTimer.current);
-    pressTimer.current = setTimeout(() => {
-      isLongPress.current = true;
-      triggerFlip();
-    }, 500);
-  }, [triggerFlip]);
-
-  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
-    if (pressTimer.current) clearTimeout(pressTimer.current);
-    if (isLongPress.current) {
-      e.preventDefault();
-      e.stopPropagation();
-      setTimeout(() => {
-        isLongPress.current = false;
-      }, 400);
-    }
-  }, []);
-
-  const handleTouchMove = useCallback(() => {
-    if (pressTimer.current) clearTimeout(pressTimer.current);
-  }, []);
-
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (isLongPress.current) return;
-    triggerFlip();
-  }, [triggerFlip]);
-
-  const handleCardClick = (e: React.MouseEvent) => {
-    if (isFlipped) {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsFlipped(false);
-      return;
-    }
-  };
-
   return (
     <div
-      onClick={handleCardClick}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-      onTouchMove={handleTouchMove}
-      onContextMenu={handleContextMenu}
-      className="glass-panel flex items-center gap-3.5 p-3.5 rounded-3xl transition-all duration-200 active:scale-[0.98] [perspective:1000px]"
-      style={{
-        borderColor: 'var(--border-subtle)',
-        perspective: '1000px',
-        WebkitPerspective: '1000px',
-      }}
+      {...bind}
+      className="press-surface glass-panel flex items-center gap-3.5 p-3.5 rounded-3xl transition-all duration-200 active:scale-[0.98]"
+      style={{ borderColor: 'var(--border-subtle)' }}
     >
       {/* ── Poster with 3D Flip ── */}
       <div
@@ -128,6 +61,7 @@ export default function SearchResultCard({ result, inLibrary = false, onAdd }: S
                 alt={result.title}
                 fill
                 sizes="56px"
+                draggable={false}
                 className="object-cover"
               />
             ) : (
@@ -137,16 +71,13 @@ export default function SearchResultCard({ result, inLibrary = false, onAdd }: S
             )}
           </div>
 
-          {/* Back Face (Director's Note) */}
+          {/* Back Face (Director's Note): opaque, no backdrop blur (unreliable
+              in Safari on a face hidden by `backface-visibility`). */}
           <div
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setIsFlipped(false);
-            }}
-            className="absolute inset-0 rounded-2xl p-1.5 flex flex-col items-center justify-center text-center border backdrop-blur-2xl cursor-pointer [backface-visibility:hidden]"
+            className="absolute inset-0 rounded-2xl p-1.5 flex flex-col items-center justify-center text-center border cursor-pointer [backface-visibility:hidden]"
             style={{
-              background: 'linear-gradient(145deg, rgba(245, 166, 35, 0.25) 0%, rgba(18, 18, 21, 0.95) 100%)',
+              background:
+                'linear-gradient(145deg, rgba(245, 166, 35, 0.25) 0%, rgba(18, 18, 21, 0.95) 100%), #0c0c0e',
               borderColor: 'rgba(245, 166, 35, 0.5)',
               boxShadow: '0 0 15px rgba(245, 166, 35, 0.3)',
               backfaceVisibility: 'hidden',
@@ -210,9 +141,10 @@ export default function SearchResultCard({ result, inLibrary = false, onAdd }: S
         )}
       </div>
 
-      {/* Add button */}
+      {/* Add button: opts out of the flip, so it always just adds. */}
       <button
         type="button"
+        data-no-flip
         onClick={(e) => {
           e.stopPropagation();
           if (!inLibrary) onAdd(result);

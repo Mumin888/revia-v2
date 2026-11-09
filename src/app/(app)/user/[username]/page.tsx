@@ -5,6 +5,8 @@
 // ─────────────────────────────────────────────
 import Image from 'next/image';
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { ilikeLiteral } from '@/lib/security';
 import {
   User,
   Star,
@@ -40,18 +42,27 @@ const TYPE_META: Record<
 
 export default async function UserProfilePage({ params }: PageProps) {
   const supabase = createSupabaseServerClient();
-  const rawUsername = decodeURIComponent(params.username);
+  let rawUsername: string;
+  try {
+    rawUsername = decodeURIComponent(params.username);
+  } catch {
+    notFound();
+  }
 
-  // 1. Fetch user profile if exists in 'profiles' table
-  const { data: profileData } = await supabase
-    .from('profiles')
-    .select('*')
-    .ilike('username', rawUsername)
-    .maybeSingle();
+  // 1. Fetch user profile if exists in 'profiles' table.
+  //    The name is matched literally (wildcards escaped) and only the public
+  //    columns are read.
+  const usernamePattern = ilikeLiteral(rawUsername);
+  const { data: profileData } = usernamePattern
+    ? await supabase
+        .from('profiles')
+        .select('id, username, role, avatar_url')
+        .ilike('username', usernamePattern)
+        .maybeSingle()
+    : { data: null };
 
   const profile: UserProfile = profileData ?? {
     id: rawUsername,
-    email: '',
     username: rawUsername,
     role: 'user',
     avatar_url: null,

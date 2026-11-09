@@ -23,7 +23,8 @@ export type CustomTag = (typeof CUSTOM_TAGS)[number];
 
 export interface UserProfile {
   id: string;
-  email: string;
+  /** Only present for the signed-in user and on the admin dashboard. */
+  email?: string | null;
   username: string;
   role: UserRole;
   avatar_url: string | null;

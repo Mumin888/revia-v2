@@ -5,7 +5,6 @@ import {
   useCallback,
   useEffect,
   useRef,
-  useTransition,
 } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, X, Telescope, Film, Loader2 } from 'lucide-react';
@@ -47,11 +46,17 @@ export default function SearchPage() {
   const [selectedItem, setSelectedItem] = useState<SearchResult | null>(null);
   const [addedIds, setAddedIds]         = useState<Set<number>>(new Set());
   const [error, setError]               = useState<string | null>(null);
-  const [isPending, startTransition]    = useTransition();
+  const [isLoading, setIsLoading]       = useState(false);
   const [isUpsideDown, setIsUpsideDown] = useState(false);
   const inputRef                        = useRef<HTMLInputElement>(null);
+  // Sequence number of the latest search: an older response that arrives
+  // late is ignored instead of overwriting newer results.
+  const requestSeq                      = useRef(0);
 
   const debouncedQuery = useDebounce(query.trim(), 380);
+  // Pending from the first keystroke until the matching response is in, so
+  // "no results" is only ever shown for a search that actually ran.
+  const isPending = Boolean(query.trim()) && (isLoading || query.trim() !== debouncedQuery);
 
   // ── Stranger Things Easter Egg ─────────────────
   useEffect(() => {
@@ -68,31 +73,36 @@ export default function SearchPage() {
 
   // ── Fetch on debounced query change ─────────
   const fetchResults = useCallback(async (q: string) => {
-    if (!q) { setResults([]); return; }
+    const seq = ++requestSeq.current;
+    if (!q) { setResults([]); setIsLoading(false); return; }
     setError(null);
 
     // ── Secret Search Card & Page Easter Egg ──────────
     const cleanLower = q.toLowerCase();
     if (cleanLower === 'revia' || cleanLower === 'ozz') {
+      setIsLoading(false);
       setResults([MASTERMINDS_CARD]);
       showToast('Entering Secret Vault: The Masterminds 🚀');
-      const timer = setTimeout(() => {
+      setTimeout(() => {
         router.push('/the-masterminds');
       }, 600);
-      return () => clearTimeout(timer);
+      return;
     }
 
-    startTransition(async () => {
-      try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        setResults(json.results ?? []);
-      } catch {
-        setError('تعذّر جلب النتائج. تحقق من اتصالك وحاول مجدداً.');
-        setResults([]);
-      }
-    });
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      if (seq !== requestSeq.current) return;
+      setResults(json.results ?? []);
+    } catch {
+      if (seq !== requestSeq.current) return;
+      setError('تعذّر جلب النتائج. تحقق من اتصالك وحاول مجدداً.');
+      setResults([]);
+    } finally {
+      if (seq === requestSeq.current) setIsLoading(false);
+    }
   }, [router]);
 
   useEffect(() => {
@@ -218,7 +228,8 @@ export default function SearchPage() {
               placeholder="ابحث عن فيلم، مسلسل، أو أنمي…"
               autoComplete="off"
               dir="rtl"
-              className="w-full rounded-2xl text-sm font-semibold text-right transition-all duration-300 outline-none"
+              // text-base (16px): iOS zooms the page when a focused field's text is smaller.
+              className="w-full rounded-2xl text-base font-semibold text-right transition-all duration-300 outline-none"
               style={{
                 background: 'rgba(18, 18, 21, 0.7)',
                 backdropFilter: 'blur(20px)',

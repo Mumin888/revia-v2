@@ -19,6 +19,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { createSupabaseServerClient } from '@/lib/supabaseServer';
+import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import type { UserProfile, MediaWithReview } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -33,25 +34,49 @@ export default async function AdminDashboardPage() {
     redirect('/login');
   }
 
-  // 1. Check user profile & role
+  // 1. Admin access comes only from the role stored on the profile row.
+  //    It is never inferred from the e-mail address, which anyone can choose.
   const { data: currentProfile } = await supabase
     .from('profiles')
-    .select('*')
+    .select('role')
     .eq('id', user.id)
     .maybeSingle();
 
-  // Allow admin if role is 'admin' or if it's the designated primary admin account
-  const isAdmin = currentProfile?.role === 'admin' || user.email?.includes('admin') || user.email === 'momin@revia.app';
+  const isAdmin = currentProfile?.role === 'admin';
 
   if (!isAdmin) {
     redirect('/');
   }
 
-  // 2. Fetch all registered users / profiles
-  const { data: profilesData } = await supabase
-    .from('profiles')
-    .select('*')
-    .order('created_at', { ascending: false });
+  // 2. Fetch all registered users / profiles.
+  //    E-mails are read with the service-role client when it is configured, so
+  //    the member-facing API never has to expose them. Without it we try the
+  //    signed-in client, then fall back to the columns every member may read.
+  const PROFILE_COLUMNS = 'id, username, role, avatar_url, created_at';
+  const adminClient = createSupabaseAdminClient();
+  let profilesData: UserProfile[] | null = null;
+
+  if (adminClient) {
+    const { data } = await adminClient
+      .from('profiles')
+      .select(`${PROFILE_COLUMNS}, email`)
+      .order('created_at', { ascending: false });
+    profilesData = data as UserProfile[] | null;
+  }
+  if (!profilesData) {
+    const { data } = await supabase
+      .from('profiles')
+      .select(`${PROFILE_COLUMNS}, email`)
+      .order('created_at', { ascending: false });
+    profilesData = data as UserProfile[] | null;
+  }
+  if (!profilesData) {
+    const { data } = await supabase
+      .from('profiles')
+      .select(PROFILE_COLUMNS)
+      .order('created_at', { ascending: false });
+    profilesData = data as UserProfile[] | null;
+  }
 
   // 3. Fetch all media items & reviews
   const { data: mediaData } = await supabase

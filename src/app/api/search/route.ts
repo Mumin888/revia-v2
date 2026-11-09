@@ -8,8 +8,10 @@
 // ─────────────────────────────────────────────
 import { NextRequest, NextResponse } from 'next/server';
 import type { MediaType, SearchResult, TmdbSearchResult } from '@/lib/types';
+import { getApiUser, unauthorized } from '@/lib/apiAuth';
 
 const TMDB_BASE = 'https://api.themoviedb.org/3';
+const MAX_QUERY_LENGTH = 100;
 const ANIME_GENRE_ID = 16; // Animation genre on TMDB
 const ANIME_ORIGIN = 'JP';
 
@@ -37,12 +39,22 @@ function normalise(item: TmdbSearchResult): SearchResult {
 }
 
 export async function GET(request: NextRequest) {
+  // Members only: this route spends the server's TMDB quota.
+  if (!(await getApiUser())) return unauthorized();
+
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('q')?.trim();
 
   if (!query) {
     return NextResponse.json(
       { error: 'Missing query parameter ?q=' },
+      { status: 400 }
+    );
+  }
+
+  if (query.length > MAX_QUERY_LENGTH) {
+    return NextResponse.json(
+      { error: 'Query is too long.' },
       { status: 400 }
     );
   }
@@ -77,9 +89,11 @@ export async function GET(request: NextRequest) {
   }
 
   if (!tmdbRes.ok) {
+    // An upstream failure is a gateway error here, whatever TMDB called it:
+    // passing its 401 through would look like the member's own session expired.
     return NextResponse.json(
       { error: `TMDB error: ${tmdbRes.status}` },
-      { status: tmdbRes.status }
+      { status: 502 }
     );
   }
 

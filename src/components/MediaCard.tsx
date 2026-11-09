@@ -1,11 +1,10 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Film, Tv2, Sparkles, Star, ChevronLeft, Clapperboard, Coffee } from 'lucide-react';
 import type { MediaWithReview } from '@/lib/types';
-import { showToast } from '@/components/Toaster';
+import { useFlipCard } from '@/lib/useFlipCard';
 
 // ─── Type config ─────────────────────────────
 const TYPE_META = {
@@ -20,20 +19,8 @@ const STATUS_META = {
   recommended: { label: 'موصى',   bg: 'rgba(232,121,249,0.25)', text: '#e879f9', border: 'rgba(232,121,249,0.5)' },
 } as const;
 
-const DIRECTORS_NOTES = [
-  'Ozz says: The UI took 3 cups of coffee and zero sleep to build! ☕',
-  'Fun Fact: Every glassmorphic card in REVIA was tested on 4K OLED screens! 🎬',
-  'Director’s Cut: Secretly watching movies during development was 100% part of the job! 🍿',
-  'Dev Note: The blur radius was calibrated using actual IMAX cinema optical lenses! ✨',
-  'Behind The Scenes: This card was written at 3:42 AM while binge-watching Oppenheimer. ⏳',
-  'Easter Egg Lore: 9 out of 10 developers recommend pairing this movie with extra butter popcorn. 🧈',
-  'Audio Check: No actual actors were harmed during the deployment of this database query. 🎧',
-  'Director’s Advice: Never pause a Christopher Nolan movie to explain the plot. Just ride the wave! 🌊',
-  'Studio Secret: The soundtrack for building REVIA was Hans Zimmer on loop for 72 hours. 🎻',
-  'Cinematographer Note: That 1px border glow is rendered with 100% organic starlight. 🌟',
-  'Critic Consensus: 10/10 masterclass in frontend glassmorphism and pure cinema love! 🏆',
-  'Production Trivia: Over 500 lines of Tailwind CSS were written before the opening credits rolled! 🎞️',
-];
+const ROOT_CLASS =
+  'press-surface text-right block rounded-3xl focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70';
 
 interface MediaCardProps {
   item: MediaWithReview;
@@ -42,16 +29,14 @@ interface MediaCardProps {
 }
 
 export default function MediaCard({ item, index = 0, onClick }: MediaCardProps) {
-  const [isFlipped, setIsFlipped] = useState(false);
-  const [directorsNote, setDirectorsNote] = useState('');
-  const pressTimer = useRef<NodeJS.Timeout | null>(null);
-  const isLongPress = useRef(false);
+  // Press-and-hold (touch) or right-click (mouse) flips the poster.
+  const { isFlipped, directorsNote, bind } = useFlipCard();
 
   const meta  = TYPE_META[item.media_type] || TYPE_META.movie;
   const Icon  = meta.Icon;
   const year  = item.release_date?.slice(0, 4);
 
-  const ratings = item.reviews?.map((r) => r.rating).filter(Boolean) as number[];
+  const ratings = (item.reviews ?? []).map((r) => r.rating).filter(Boolean) as number[];
   const avgRating =
     ratings.length > 0
       ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1)
@@ -65,51 +50,10 @@ export default function MediaCard({ item, index = 0, onClick }: MediaCardProps) 
 
   const stagger = `stagger-${(index % 5) + 1}`;
 
-  const triggerFlip = useCallback(() => {
-    setDirectorsNote(DIRECTORS_NOTES[Math.floor(Math.random() * DIRECTORS_NOTES.length)]);
-    setIsFlipped((prev) => !prev);
-    showToast('Director’s Cut Unlocked! 🎥 3D Flip');
-  }, []);
-
-  // Long press handlers
-  const handleTouchStart = useCallback(() => {
-    isLongPress.current = false;
-    if (pressTimer.current) clearTimeout(pressTimer.current);
-    pressTimer.current = setTimeout(() => {
-      isLongPress.current = true;
-      triggerFlip();
-    }, 500);
-  }, [triggerFlip]);
-
-  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
-    if (pressTimer.current) clearTimeout(pressTimer.current);
-    if (isLongPress.current) {
-      e.preventDefault();
-      e.stopPropagation();
-      setTimeout(() => {
-        isLongPress.current = false;
-      }, 400);
-    }
-  }, []);
-
-  const handleTouchMove = useCallback(() => {
-    if (pressTimer.current) clearTimeout(pressTimer.current);
-  }, []);
-
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (isLongPress.current) return;
-    triggerFlip();
-  }, [triggerFlip]);
-
   const cardInner = (
     <div
-      className={`group relative w-36 flex-shrink-0 text-right focus:outline-none block animate-fade-in-up [perspective:1000px] ${stagger}`}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-      onTouchMove={handleTouchMove}
-      onContextMenu={handleContextMenu}
+      className={`press-surface group relative w-36 flex-shrink-0 text-right block animate-fade-in-up ${stagger}`}
+      {...bind}
     >
       {/* ── 3D Flip Container ── */}
       <div
@@ -141,6 +85,7 @@ export default function MediaCard({ item, index = 0, onClick }: MediaCardProps) 
                 alt={item.title}
                 fill
                 sizes="144px"
+                draggable={false}
                 className="object-cover transition-transform duration-700 ease-out group-hover:scale-110"
               />
             ) : (
@@ -151,9 +96,12 @@ export default function MediaCard({ item, index = 0, onClick }: MediaCardProps) 
 
             <div className="poster-overlay absolute inset-0 pointer-events-none" />
 
+            {/* The badges sit on near-opaque backgrounds, so they carry no
+                backdrop blur: a row of cards would otherwise mean dozens of
+                blur layers to composite while scrolling. */}
             {avgRating && (
               <div
-                className="absolute top-2.5 start-2.5 flex items-center gap-1 px-2 py-0.5 rounded-xl backdrop-blur-xl border"
+                className="absolute top-2.5 start-2.5 flex items-center gap-1 px-2 py-0.5 rounded-xl border"
                 style={{
                   background: 'rgba(5, 5, 5, 0.85)',
                   borderColor: 'rgba(245, 166, 35, 0.55)',
@@ -166,7 +114,7 @@ export default function MediaCard({ item, index = 0, onClick }: MediaCardProps) 
             )}
 
             <span
-              className="absolute top-2.5 end-2.5 text-[9px] font-black px-2 py-0.5 rounded-lg backdrop-blur-xl border"
+              className="absolute top-2.5 end-2.5 text-[9px] font-black px-2 py-0.5 rounded-lg border"
               style={{
                 background: 'rgba(5, 5, 5, 0.8)',
                 color: meta.color,
@@ -179,9 +127,10 @@ export default function MediaCard({ item, index = 0, onClick }: MediaCardProps) 
             <div className="absolute bottom-2.5 inset-x-2.5 transition-all duration-300">
               {statusMeta ? (
                 <div
-                  className="text-center text-[10px] font-black py-1 rounded-xl backdrop-blur-xl border"
+                  className="text-center text-[10px] font-black py-1 rounded-xl border"
                   style={{
-                    background: statusMeta.bg,
+                    // Tint over a dark base, so the label stays readable on any poster.
+                    background: `linear-gradient(${statusMeta.bg}, ${statusMeta.bg}), rgba(5, 5, 5, 0.7)`,
                     color: statusMeta.text,
                     borderColor: statusMeta.border,
                   }}
@@ -190,9 +139,9 @@ export default function MediaCard({ item, index = 0, onClick }: MediaCardProps) 
                 </div>
               ) : (
                 <div
-                  className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-1 text-[10px] font-bold py-1 rounded-xl backdrop-blur-md border"
+                  className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-1 text-[10px] font-bold py-1 rounded-xl border"
                   style={{
-                    background: 'rgba(255,255,255,0.1)',
+                    background: 'rgba(5, 5, 5, 0.7)',
                     borderColor: 'var(--border-luminous)',
                     color: 'var(--text-primary)',
                   }}
@@ -204,16 +153,14 @@ export default function MediaCard({ item, index = 0, onClick }: MediaCardProps) 
             </div>
           </div>
 
-          {/* ── BACK FACE: Director's Cut Note ── */}
+          {/* ── BACK FACE: Director's Cut Note ──
+              Opaque on purpose: a backdrop blur on a face that is hidden by
+              `backface-visibility` is unreliable in Safari. */}
           <div
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setIsFlipped(false);
-            }}
-            className="absolute inset-0 rounded-3xl p-3.5 flex flex-col justify-between text-right border backdrop-blur-2xl cursor-pointer [backface-visibility:hidden]"
+            className="absolute inset-0 rounded-3xl p-3.5 flex flex-col justify-between text-right border cursor-pointer [backface-visibility:hidden]"
             style={{
-              background: 'linear-gradient(145deg, rgba(245, 166, 35, 0.15) 0%, rgba(18, 18, 21, 0.95) 100%)',
+              background:
+                'linear-gradient(145deg, rgba(245, 166, 35, 0.15) 0%, rgba(18, 18, 21, 0.95) 100%), #0c0c0e',
               borderColor: 'rgba(245, 166, 35, 0.5)',
               boxShadow: '0 0 25px rgba(245, 166, 35, 0.25)',
               backfaceVisibility: 'hidden',
@@ -267,30 +214,15 @@ export default function MediaCard({ item, index = 0, onClick }: MediaCardProps) 
     </div>
   );
 
-  const handleMainClick = (e: React.MouseEvent) => {
-    if (isFlipped) {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsFlipped(false);
-      return;
-    }
-    if (isLongPress.current) {
-      e.preventDefault();
-      e.stopPropagation();
-      return;
-    }
-    if (onClick) {
-      onClick();
-    }
-  };
-
+  // Taps that belong to the flip (the release after a long-press, a tap on
+  // the back) are stopped by `bind` on the inner wrapper before they get
+  // here, so the root only ever sees a real "open this title" tap.
   if (onClick) {
     return (
       <button
         type="button"
-        onClick={handleMainClick}
-        onContextMenu={handleContextMenu}
-        className="text-right focus:outline-none block [perspective:1000px]"
+        onClick={onClick}
+        className={ROOT_CLASS}
         aria-label={`عرض تفاصيل ${item.title}`}
       >
         {cardInner}
@@ -301,9 +233,8 @@ export default function MediaCard({ item, index = 0, onClick }: MediaCardProps) 
   return (
     <Link
       href={`/media/${item.id}`}
-      onClick={handleMainClick}
-      onContextMenu={handleContextMenu}
-      className="text-right focus:outline-none block [perspective:1000px]"
+      draggable={false}
+      className={ROOT_CLASS}
       aria-label={`عرض تفاصيل ${item.title}`}
     >
       {cardInner}
