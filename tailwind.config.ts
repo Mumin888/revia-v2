@@ -1,5 +1,10 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  // `hover:` / `group-hover:` only apply on devices that can really hover,
+  // so a tap on a phone no longer leaves a card stuck in its hover state.
+  future: {
+    hoverOnlyWhenSupported: true,
+  },
   content: [
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
@@ -47,6 +52,20 @@ module.exports = {
         'bounce-in': 'bounceIn 0.4s cubic-bezier(0.68,-0.55,0.265,1.55)',
         // أنيميشن الواجهة الحديثة (Staggered & Fluid)
         'fade-in-up': 'fadeInUp 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+        'fade-in': 'fadeIn 0.3s ease-out both',
+      },
+      // Values the pages already use that Tailwind does not ship by default.
+      scale: {
+        97: '0.97',
+        98: '0.98',
+        102: '1.02',
+        108: '1.08',
+      },
+      blur: {
+        xs: '2px',
+      },
+      transitionDuration: {
+        250: '250ms',
       },
       keyframes: {
         // الكي فريمز بتاعتك
@@ -66,6 +85,10 @@ module.exports = {
         fadeInUp: {
           '0%': { opacity: '0', transform: 'translateY(24px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
         },
       },
       borderRadius: {

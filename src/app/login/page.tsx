@@ -52,7 +52,8 @@ const inputStyle: React.CSSProperties = {
   borderRadius: '0.875rem',
   padding: '0.85rem 1rem',
   width: '100%',
-  fontSize: '0.875rem',
+  // 16px: iOS zooms the whole page when a focused field's text is smaller.
+  fontSize: '1rem',
   fontWeight: 600,
   outline: 'none',
   transition: 'border-color 0.25s, box-shadow 0.25s',

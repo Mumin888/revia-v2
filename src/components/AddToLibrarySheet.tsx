@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabaseClient';
 import type { SearchResult, WatchStatus } from '@/lib/types';
 import { isOwnReview } from '@/lib/security';
 import { showToast } from '@/components/Toaster';
+import BottomSheet from '@/components/BottomSheet';
 
 const TYPE_META = {
   movie:  { label: 'فيلم',   Icon: Film,     color: '#60a5fa' },
@@ -210,30 +211,20 @@ function SheetBody({ item, userName, userId, onClose, onSuccess }: SheetBodyProp
   }
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-50 backdrop-blur-md transition-opacity"
-        style={{ background: 'rgba(5,5,5,0.85)' }}
-        onClick={onClose}
-        aria-hidden="true"
-      />
-
-      {/* ── .sheet-glass modal (exact class from globals.css @layer components) ── */}
-      <div
-        className="sheet-glass fixed inset-x-0 bottom-0 z-50 rounded-t-[2.5rem] p-6 pb-12 space-y-6"
-        style={{ animation: 'fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both' }}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`إضافة ${item.title} إلى المكتبة`}
-      >
-        {/* Drag handle */}
-        <div className="w-12 h-1 rounded-full mx-auto -mt-1" style={{ background: 'var(--border-luminous)' }} />
-
+    // BottomSheet provides the backdrop, drag handle, slide animation,
+    // Escape / drag-to-dismiss, focus handling and scroll lock.
+    <BottomSheet
+      onClose={onClose}
+      label={`إضافة ${item.title} إلى المكتبة`}
+      dismissible={!isPending}
+    >
+      {(close) => (
+        <>
         {/* Close */}
         <button
-          onClick={onClose}
-          className="absolute top-5 start-5 w-9 h-9 rounded-full flex items-center justify-center transition-colors backdrop-blur-xl border"
+          type="button"
+          onClick={close}
+          className="absolute top-4 start-5 w-9 h-9 rounded-full flex items-center justify-center transition-colors border"
           style={{
             background: 'rgba(255,255,255,0.05)',
             borderColor: 'var(--border-subtle)',
@@ -245,7 +236,7 @@ function SheetBody({ item, userName, userId, onClose, onSuccess }: SheetBodyProp
         </button>
 
         {/* Item preview */}
-        <div className="flex items-center gap-4 pt-1">
+        <div className="flex items-center gap-4 pt-3">
           <div
             className="relative w-16 h-24 rounded-2xl overflow-hidden flex-shrink-0 shadow-2xl border"
             style={{
@@ -348,7 +339,7 @@ function SheetBody({ item, userName, userId, onClose, onSuccess }: SheetBodyProp
               type="button"
               onClick={handleRemove}
               disabled={isPending || done}
-              className="px-5 py-4 rounded-2xl font-black text-xs flex items-center justify-center gap-1.5 transition-all active:scale-97 border"
+              className="px-5 py-4 rounded-2xl font-black text-xs flex items-center justify-center gap-1.5 transition-all active:scale-97 border disabled:opacity-40 disabled:pointer-events-none"
               style={{ color: '#f87171', background: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.3)' }}
             >
               <Trash2 size={17} />
@@ -373,7 +364,8 @@ function SheetBody({ item, userName, userId, onClose, onSuccess }: SheetBodyProp
             )}
           </button>
         </div>
-      </div>
-    </>
+        </>
+      )}
+    </BottomSheet>
   );
 }

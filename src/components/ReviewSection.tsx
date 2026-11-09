@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { type MediaReview, type WatchStatus, type CustomTag, CUSTOM_TAGS } from '@/lib/types';
 import { isOwnReview } from '@/lib/security';
 import { showToast, launchConfetti } from '@/components/Toaster';
+import BottomSheet from '@/components/BottomSheet';
 
 interface ReviewSectionProps {
   mediaId: string;
@@ -37,7 +38,8 @@ const inputStyle: React.CSSProperties = {
   borderRadius: '0.875rem',
   padding: '0.85rem 1rem',
   width: '100%',
-  fontSize: '0.875rem',
+  // 16px: iOS zooms the whole page when a focused field's text is smaller.
+  fontSize: '1rem',
   fontWeight: 600,
   outline: 'none',
   transition: 'border-color 0.25s, box-shadow 0.25s',
@@ -370,26 +372,15 @@ export default function ReviewSection({ mediaId, initialReviews }: ReviewSection
 
       {/* ── Modal Sheet ── */}
       {isOpen && activeUser && (
-        <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 z-50 backdrop-blur-md"
-            style={{ background: 'rgba(5,5,5,0.85)' }}
-            onClick={() => !isPending && setIsOpen(false)}
-            aria-hidden="true"
-          />
-
-          {/* .sheet-glass modal */}
-          <div
-            className="sheet-glass fixed inset-x-0 bottom-0 z-50 max-h-[92dvh] overflow-y-auto rounded-t-[2.5rem] p-6 pb-14 space-y-6"
-            style={{ animation: 'fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both' }}
-            role="dialog"
-            aria-modal="true"
-            aria-label={`تعديل مراجعة ${activeUser}`}
-          >
-            {/* Drag handle */}
-            <div className="w-12 h-1 rounded-full mx-auto -mt-1" style={{ background: 'var(--border-luminous)' }} />
-
+        // BottomSheet provides the backdrop, drag handle, slide animation,
+        // Escape / drag-to-dismiss, focus handling and scroll lock.
+        <BottomSheet
+          onClose={() => setIsOpen(false)}
+          label={`تعديل مراجعة ${activeUser}`}
+          dismissible={!isPending}
+        >
+          {(close) => (
+            <>
             {/* Header */}
             <div
               className="flex items-center justify-between pb-4 border-b"
@@ -397,7 +388,8 @@ export default function ReviewSection({ mediaId, initialReviews }: ReviewSection
             >
               <button
                 type="button"
-                onClick={() => setIsOpen(false)}
+                onClick={close}
+                aria-label="إغلاق"
                 disabled={isPending}
                 className="w-9 h-9 rounded-full flex items-center justify-center border transition-colors"
                 style={{
@@ -460,7 +452,9 @@ export default function ReviewSection({ mediaId, initialReviews }: ReviewSection
                 </label>
               </div>
 
-              <div className="grid grid-cols-10 gap-1.5">
+              {/* Two rows of five: each score is a comfortable touch target
+                  even on a narrow phone. */}
+              <div className="grid grid-cols-5 gap-2">
                 {Array.from({ length: 10 }).map((_, i) => {
                   const score   = i + 1;
                   const filled  = formRating !== null && score <= formRating;
@@ -588,8 +582,9 @@ export default function ReviewSection({ mediaId, initialReviews }: ReviewSection
                 )}
               </button>
             </div>
-          </div>
-        </>
+            </>
+          )}
+        </BottomSheet>
       )}
     </section>
   );

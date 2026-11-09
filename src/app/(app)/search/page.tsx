@@ -228,7 +228,8 @@ export default function SearchPage() {
               placeholder="ابحث عن فيلم، مسلسل، أو أنمي…"
               autoComplete="off"
               dir="rtl"
-              className="w-full rounded-2xl text-sm font-semibold text-right transition-all duration-300 outline-none"
+              // text-base (16px): iOS zooms the page when a focused field's text is smaller.
+              className="w-full rounded-2xl text-base font-semibold text-right transition-all duration-300 outline-none"
               style={{
                 background: 'rgba(18, 18, 21, 0.7)',
                 backdropFilter: 'blur(20px)',

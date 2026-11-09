@@ -28,12 +28,12 @@ export const metadata: Metadata = {
   },
 };
 
+// Pinch-zoom stays available (people with low vision rely on it). The zoom
+// that iOS applies on focusing a field is avoided by 16px inputs instead.
 export const viewport: Viewport = {
   themeColor: '#050505',
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   viewportFit: 'cover',
 };
 
